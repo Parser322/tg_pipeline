@@ -6,6 +6,7 @@ from telethon import TelegramClient
 from telethon.errors import (
     FloodWaitError,
 )
+from telethon.sessions import StringSession
 from PIL import Image
 from app.state_manager import increment_processed, set_total, get_last_id, set_last_id
 from app.supabase_manager import save_post, upload_media_files, save_post_media
@@ -325,11 +326,16 @@ async def process_channel(client: TelegramClient, ch: str, limit: int):
 
 async def main(limit: int = 100, period_hours: int | None = None, channel_url: str | None = None, is_top_posts: bool = False):
     """Основная функция, теперь принимает лимит постов, канал и режим парсинга."""
-    # Путь к session файлу в backend/
-    session_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "session")
-    # Восстанавливаем сессию из env при необходимости
-    _ensure_telethon_session(session_path)
-    client = TelegramClient(session_path, TELEGRAM_API_ID, TELEGRAM_API_HASH)
+    # Поддержка строковой сессии (предпочтительно для прод/CI)
+    session_string = os.getenv("TELEGRAM_STRING_SESSION")
+    if session_string:
+        client = TelegramClient(StringSession(session_string), TELEGRAM_API_ID, TELEGRAM_API_HASH)
+    else:
+        # Путь к session файлу в backend/
+        session_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "session")
+        # Восстанавливаем сессию из env при необходимости
+        _ensure_telethon_session(session_path)
+        client = TelegramClient(session_path, TELEGRAM_API_ID, TELEGRAM_API_HASH)
     try:
         await client.start()
         me = await client.get_me()

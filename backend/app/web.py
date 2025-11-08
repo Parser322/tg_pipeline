@@ -339,13 +339,18 @@ class EchoPayload(BaseModel):
 async def debug_send_text(payload: EchoPayload):
     try:
         from telethon import TelegramClient
+        from telethon.sessions import StringSession
         from dotenv import load_dotenv
         import os
         load_dotenv()
         api_id = int(os.getenv("TELEGRAM_API_ID"))
         api_hash = os.getenv("TELEGRAM_API_HASH")
-        session_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "session")
-        client = TelegramClient(session_path, api_id, api_hash)
+        session_string = os.getenv("TELEGRAM_STRING_SESSION")
+        if session_string:
+            client = TelegramClient(StringSession(session_string), api_id, api_hash)
+        else:
+            session_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "session")
+            client = TelegramClient(session_path, api_id, api_hash)
         await client.start()
         await client.send_message("me", f"[debug] {payload.text}")
         # отправка в канал назначения (если нужно)
