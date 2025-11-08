@@ -20,8 +20,6 @@ RUN pip install --upgrade pip && \
 # Копируем исходники backend (включая config.yaml и session файлы)
 COPY app /app/app
 COPY config.yaml /app/config.yaml
-COPY session.session /app/session.session
-COPY session.session.bak /app/session.session.bak
 
 EXPOSE 8000
 

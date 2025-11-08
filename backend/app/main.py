@@ -31,6 +31,25 @@ OUT.mkdir(exist_ok=True, parents=True)
 # Логика работы с state.json полностью заменена на Supabase через state_manager.py
 
 # === 1. Помощники для медиа ===
+def _ensure_telethon_session(session_base_path: str) -> None:
+    """
+    Если файла сессии нет, а переменная окружения TELEGRAM_SESSION_B64 передана,
+    восстановим файл сессии из base64.
+    """
+    try:
+        session_file = session_base_path + ".session"
+        if pathlib.Path(session_file).exists():
+            return
+        b64 = os.getenv("TELEGRAM_SESSION_B64")
+        if not b64:
+            return
+        import base64
+        data = base64.b64decode(b64)
+        with open(session_file, "wb") as f:
+            f.write(data)
+        print("Telethon session restored from TELEGRAM_SESSION_B64.")
+    except Exception as e:
+        print("Failed to restore Telethon session from env:", e)
 def ffmpeg_exists() -> bool:
     return shutil.which("ffmpeg") is not None
 
@@ -308,6 +327,8 @@ async def main(limit: int = 100, period_hours: int | None = None, channel_url: s
     """Основная функция, теперь принимает лимит постов, канал и режим парсинга."""
     # Путь к session файлу в backend/
     session_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "session")
+    # Восстанавливаем сессию из env при необходимости
+    _ensure_telethon_session(session_path)
     client = TelegramClient(session_path, TELEGRAM_API_ID, TELEGRAM_API_HASH)
     try:
         await client.start()
