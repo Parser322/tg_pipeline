@@ -15,8 +15,8 @@ PyYAML>=6.0
 # Image Processing
 Pillow>=10.2.0
 
-# Firebase
-firebase-admin>=6.4.0
+# Supabase
+supabase>=2.4.0
 
 # OpenAI for translations
 openai>=1.10.0

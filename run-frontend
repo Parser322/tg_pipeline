@@ -1,12 +1,11 @@
 #!/bin/bash
 cd "$(dirname "$0")/frontend"
 
-echo "🚀 Frontend..."
+echo "🚀 Next.js frontend..."
 
-# Всегда обновляем зависимости
 echo "📦 Installing dependencies..."
 npm install
 
 echo "✨ http://localhost:3000"
-npm start
+npm run dev
 

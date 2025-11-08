@@ -1,8 +1,9 @@
 # state_manager.py
-# Этот модуль служит фасадом для управления состоянием пайплайна в Firestore.
+# Фасад для управления состоянием пайплайна в Supabase.
 
-from firebase_admin import firestore
-from app.firebase_manager import get_state_document, update_state, set_state
+from typing import Dict, Any
+
+from app.supabase_manager import get_state_document, update_state, set_state
 
 DEFAULT_STATE = {
     "processed": 0,
@@ -13,13 +14,13 @@ DEFAULT_STATE = {
 }
 
 def get_state():
-    """Возвращает текущее состояние из Firestore, или состояние по умолчанию."""
+    """Возвращает текущее состояние из Supabase, или состояние по умолчанию."""
     state = get_state_document()
     # Убедимся, что все ключи из DEFAULT_STATE присутствуют
-    return {**DEFAULT_STATE, **state}
+    return {**DEFAULT_STATE, **(state or {})}
 
 def reset_state():
-    """Сбрасывает состояние прогресса в Firestore, но сохраняет last_id каналов."""
+    """Сбрасывает состояние прогресса в Supabase, но сохраняет last_id каналов."""
     current_state = get_state()
     new_state = {
         **current_state, # Сохраняем существующие значения, включая 'channels'
@@ -42,8 +43,10 @@ def set_finished(finished: bool):
     update_state({"finished": finished})
 
 def increment_processed():
-    """Атомарно увеличивает счетчик обработанных постов в Firestore."""
-    update_state({"processed": firestore.Increment(1)})
+    """Увеличивает счетчик обработанных постов в Supabase."""
+    state = get_state()
+    processed = int(state.get("processed", 0)) + 1
+    update_state({"processed": processed})
 
 def set_total(total: int):
     """Устанавливает общее количество постов для обработки."""

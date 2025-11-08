@@ -8,7 +8,7 @@ from telethon.errors import (
 )
 from PIL import Image
 from app.state_manager import increment_processed, set_total, get_last_id, set_last_id
-from app.firebase_manager import save_post
+from app.supabase_manager import save_post, upload_media_files, save_post_media
 # Убираем импорт, так как перевод здесь больше не нужен
 # from app.translation import translate_text
 
@@ -28,7 +28,7 @@ with open(config_path, "r", encoding="utf-8") as f:
 OUT = pathlib.Path.home() / "Library" / "Caches" / "tg_pipeline"   # кэш, чтобы не засорять проект
 OUT.mkdir(exist_ok=True, parents=True)
 
-# Логика работы с state.json полностью заменена на Firestore через state_manager.py
+# Логика работы с state.json полностью заменена на Supabase через state_manager.py
 
 # === 1. Помощники для медиа ===
 def ffmpeg_exists() -> bool:
@@ -114,15 +114,6 @@ async def process_top_posts(client: TelegramClient, ch: str, period_days: float,
         if msg_dt < since_dt:
             break
 
-        # Пропускаем видео/GIF
-        media = getattr(m, "media", None)
-        doc = getattr(media, "document", None) if media else None
-        mime = (getattr(doc, "mime_type", "") or "").lower() if doc else ""
-        attrs = getattr(doc, "attributes", []) or []
-        is_animated = any(getattr(a, "animated", False) or a.__class__.__name__ == "DocumentAttributeAnimated" for a in attrs)
-        if (mime.startswith("video") or mime == "image/gif" or is_animated):
-            continue
-
         # Считываем реакции и просмотры (если доступны)
         likes = 0
         comments = int(getattr(m, 'replies', None).replies if getattr(m, 'replies', None) else 0)
@@ -178,10 +169,10 @@ async def process_top_posts(client: TelegramClient, ch: str, period_days: float,
     if isinstance(desired_total, int) and desired_total > 0:
         unique_msgs = unique_msgs[:desired_total]
 
-    # Фолбэк: если ничего не набрали по метрикам, добираем просто свежие текстовые посты
+    # Фолбэк: если ничего не набрали по метрикам, добираем просто свежие посты
     if not unique_msgs:
         print("Top selection produced 0 messages, applying fallback by date...")
-        # collected уже без видео/GIF; сортируем по дате у исходных сообщений
+        # сортируем по дате у исходных сообщений
         collected_sorted = sorted(collected, key=lambda x: x['message'].date, reverse=True)
         for item in collected_sorted:
             unique_msgs.append(item)
@@ -192,14 +183,6 @@ async def process_top_posts(client: TelegramClient, ch: str, period_days: float,
     if not unique_msgs:
         print("Fallback by date yielded 0 messages, expanding search window (ignore period)...")
         async for m2 in client.iter_messages(entity, limit=500):
-            media = getattr(m2, "media", None)
-            doc = getattr(media, "document", None) if media else None
-            mime = (getattr(doc, "mime_type", "") or "").lower() if doc else ""
-            attrs = getattr(doc, "attributes", []) or []
-            is_animated = any(getattr(a, "animated", False) or a.__class__.__name__ == "DocumentAttributeAnimated" for a in attrs)
-            if (mime.startswith("video") or mime == "image/gif" or is_animated):
-                continue
-            
             # Оборачиваем в совместимую структуру
             unique_msgs.append({
                 'message': m2,
@@ -223,7 +206,7 @@ async def process_top_posts(client: TelegramClient, ch: str, period_days: float,
         caption = (m.message or "").strip()
         media_paths = await download_and_brand(client, m)
         
-        # --- Собираем данные для сохранения в Firestore ---
+        # --- Собираем данные для сохранения в Supabase ---
         post_to_save = {
             "source_channel": ch,
             "original_message_id": m.id,
@@ -240,10 +223,14 @@ async def process_top_posts(client: TelegramClient, ch: str, period_days: float,
             "original_likes": item.get('likes', 0),
             "original_comments": item.get('comments', 0),
         }
-        save_post(post_to_save)
+        post_id = save_post(post_to_save)
+        if post_id and media_paths:
+            media_items = upload_media_files(media_paths, ch, m.id)
+            if media_items:
+                save_post_media(post_id, media_items)
 
         # --- ОТПРАВКА В TELEGRAM ОТКЛЮЧЕНА ---
-        print(f"Post id={m.id} saved to Firestore. Skipping Telegram send.")
+        print(f"Post id={m.id} saved to Supabase. Skipping Telegram send.")
 
         # Чистим кэш после сохранения
         for p in media_paths:
@@ -265,27 +252,9 @@ async def process_channel(client: TelegramClient, ch: str, limit: int):
         set_total(0)
         return
 
-    # Фильтруем сообщения, исключая видео/GIF
-    filtered_msgs = []
-    for m in all_msgs:
-        try:
-            media = getattr(m, "media", None)
-            doc = getattr(media, "document", None) if media else None
-            mime = (getattr(doc, "mime_type", "") or "").lower() if doc else ""
-            attrs = getattr(doc, "attributes", []) or []
-            is_animated = any(getattr(a, "animated", False) or a.__class__.__name__ == "DocumentAttributeAnimated" for a in attrs)
-            if not (mime.startswith("video") or mime == "image/gif" or is_animated):
-                filtered_msgs.append(m)
-                if len(filtered_msgs) >= limit:  # Останавливаемся когда набрали нужное количество
-                    break
-        except Exception:
-            # В случае ошибки определения типа медиа включаем сообщение
-            filtered_msgs.append(m)
-            if len(filtered_msgs) >= limit:
-                break
-
-    msgs = filtered_msgs
-    set_total(len(msgs)) # Устанавливаем количество только отфильтрованных сообщений
+    # Больше не фильтруем видео/GIF — включаем любые сообщения
+    msgs = all_msgs[:limit]
+    set_total(len(msgs)) # Устанавливаем количество для обработки
     msgs.reverse()  # от старых к новым
 
     for m in msgs:
@@ -299,7 +268,7 @@ async def process_channel(client: TelegramClient, ch: str, limit: int):
 
         # --- Логика склейки полностью удалена ---
 
-        # --- Собираем данные для сохранения в Firestore ---
+        # --- Собираем данные для сохранения в Supabase ---
         caption = (text or "").strip()
 
         post_to_save = {
@@ -317,8 +286,12 @@ async def process_channel(client: TelegramClient, ch: str, limit: int):
             "original_views": m.views or 0,
         }
         
-        # --- Сохраняем пост и чистим медиа ---
-        save_post(post_to_save)
+        # --- Сохраняем пост и медиа ---
+        post_id = save_post(post_to_save)
+        if post_id and media_paths:
+            media_items = upload_media_files(media_paths, ch, m.id)
+            if media_items:
+                save_post_media(post_id, media_items)
 
         # --- ОТПРАВКА В TELEGRAM ОТКЛЮЧЕНА ---
         # Теперь только чистим кэш после сохранения

@@ -8,14 +8,23 @@ from pydantic import BaseModel
 # Импортируем вашу основную функцию и управление состоянием
 from app.main import main as run_pipeline_main
 from app.state_manager import get_state, set_running, reset_state, set_finished
-from app.firebase_manager import initialize_firestore, get_all_posts, get_post, update_post, delete_post, delete_all_posts, save_channel, get_saved_channel, is_channel_saved, delete_saved_channel, cleanup_old_channels_collection
+from app.supabase_manager import (
+    initialize_supabase,
+    get_all_posts,
+    get_all_posts_with_media,
+    get_post,
+    update_post,
+    delete_post,
+    delete_all_posts,
+    save_channel,
+    get_saved_channel,
+    is_channel_saved,
+    delete_saved_channel,
+)
 from app.translation import translate_text
 
-# Инициализируем Firestore при старте
-initialize_firestore()
-
-# Выполняем миграцию для очистки старых коллекций
-cleanup_old_channels_collection()
+# Инициализируем Supabase при старте приложения
+initialize_supabase()
 
 app = FastAPI()
 
@@ -211,7 +220,8 @@ async def translate_endpoint(payload: TranslationPayload):
 @app.get("/posts")
 async def list_posts_endpoint():
     """Возвращает список всех сохраненных постов."""
-    posts = get_all_posts()
+    # Возвращаем посты с вложениями media[]
+    posts = get_all_posts_with_media()
     return {"ok": True, "posts": posts}
 
 class ManualTranslationPayload(BaseModel):
@@ -219,7 +229,7 @@ class ManualTranslationPayload(BaseModel):
 
 @app.post("/posts/{post_id}/translate")
 async def translate_post_endpoint(post_id: str, payload: ManualTranslationPayload):
-    """Переводит конкретный сохраненный пост и обновляет его в Firestore."""
+    """Переводит конкретный сохраненный пост и обновляет его в Supabase."""
     post = get_post(post_id)
     if not post:
         return JSONResponse(status_code=404, content={"ok": False, "error": "Post not found"})
@@ -234,7 +244,7 @@ async def translate_post_endpoint(post_id: str, payload: ManualTranslationPayloa
             target_lang=payload.target_lang
         )
         
-        # Обновляем документ в Firestore
+        # Обновляем документ в Supabase
         updates = {
             "translated_content": translated,
             "target_lang": payload.target_lang
