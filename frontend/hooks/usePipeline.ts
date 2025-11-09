@@ -73,10 +73,10 @@ export const usePipeline = () => {
   useEffect(() => {
     // Опрашиваем статус ТОЛЬКО когда процесс действительно идёт.
     if (!status.is_running) {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
       return;
     }
     // Активный опрос при запущенном процессе
