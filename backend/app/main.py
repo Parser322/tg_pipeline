@@ -338,18 +338,43 @@ async def process_channel(client: TelegramClient, ch: str, limit: int):
 async def main(limit: int = 100, period_hours: int | None = None, channel_url: str | None = None, is_top_posts: bool = False):
     """Основная функция, теперь принимает лимит постов, канал и режим парсинга."""
     api_id, api_hash = _get_telegram_credentials()
-    # Поддержка строковой сессии (предпочтительно для прод/CI)
+    # Поддержка строковой сессии (предпочтительно для прод/CI) + безопасный фолбэк
     session_string = os.getenv("TELEGRAM_STRING_SESSION")
+    session_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "session")
+    # Попробуем восстановить файловую сессию из TELEGRAM_SESSION_B64 (если задана)
+    _ensure_telethon_session(session_path)
+
+    client = None
+    session_mode = "file"
     if session_string:
-        client = TelegramClient(StringSession(session_string), api_id, api_hash)
+        try:
+            client = TelegramClient(StringSession(session_string), api_id, api_hash)
+            session_mode = "string"
+        except Exception as e:
+            # Ошибка при создании StringSession — откатываемся на файл
+            print(f"Invalid TELEGRAM_STRING_SESSION ({e}). Falling back to file session.")
+            client = TelegramClient(session_path, api_id, api_hash)
+            session_mode = "file"
     else:
-        # Путь к session файлу в backend/
-        session_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "session")
-        # Восстанавливаем сессию из env при необходимости
-        _ensure_telethon_session(session_path)
         client = TelegramClient(session_path, api_id, api_hash)
+        session_mode = "file"
     try:
-        await client.start()
+        try:
+            await client.start()
+        except Exception as e:
+            # Частый сценарий: переменная TELEGRAM_STRING_SESSION из другой библиотеки
+            # (ошибка наподобие 'unpack requires a buffer of N bytes'). Пробуем фолбэк.
+            if session_mode == "string":
+                print(f"Failed to start with TELEGRAM_STRING_SESSION: {e}. Trying file/B64 session...")
+                try:
+                    if client.is_connected():
+                        await client.disconnect()
+                except Exception:
+                    pass
+                client = TelegramClient(session_path, api_id, api_hash)
+                await client.start()
+            else:
+                raise
         me = await client.get_me()
         print(f"Started session as {me.username or me.first_name}.")
         
