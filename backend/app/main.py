@@ -164,6 +164,71 @@ def group_messages_into_post_units(messages):
             seen_mids.add(msg.id)
     return units
 
+# === helpers: извлечение метрик и разбивок реакций ===
+def _extract_message_metrics(msg):
+    """
+    Возвращает кортеж:
+    - views: int
+    - comments: int
+    - likes_total: int (сумма всех реакций)
+    - reactions_breakdown: dict[str, int]  (emoji -> count)
+    """
+    views = int(getattr(msg, "views", 0) or 0)
+    comments = int(getattr(getattr(msg, "replies", None), "replies", 0) or 0)
+    likes_total = 0
+    reactions_breakdown = {}
+    try:
+        r = getattr(msg, "reactions", None)
+        if r and getattr(r, "results", None):
+            for res in r.results:
+                react = getattr(res, "reaction", None)
+                count = int(getattr(res, "count", 0) or 0)
+                # Пытаемся получить смайлик (Unicode). Для кастомных эмодзи оставим метку custom:<id>
+                emoji = None
+                try:
+                    emoji = getattr(react, "emoticon", None)
+                except Exception:
+                    emoji = None
+                if not emoji:
+                    # Попробуем document_id у кастомного эмодзи
+                    try:
+                        doc_id = getattr(react, "document_id", None)
+                        if doc_id:
+                            emoji = f"custom:{doc_id}"
+                    except Exception:
+                        pass
+                if not emoji:
+                    try:
+                        emoji = str(react) if react is not None else None
+                    except Exception:
+                        emoji = None
+                if not emoji:
+                    emoji = "unknown"
+                likes_total += count
+                reactions_breakdown[emoji] = reactions_breakdown.get(emoji, 0) + count
+    except Exception:
+        pass
+    return views, comments, likes_total, reactions_breakdown
+
+def _merge_group_metrics(items):
+    """
+    На вход список словарей вида:
+      { 'views': int, 'comments': int, 'likes': int, 'reactions': dict[emoji,int] }
+    Агрегируем для альбомов как максимум по числовым метрикам и максимум по каждому эмодзи.
+    (в Телеграме у сообщений альбома метрики обычно синхронизированы)
+    """
+    max_views = 0
+    max_comments = 0
+    max_likes = 0
+    breakdown: dict[str, int] = {}
+    for it in items:
+        max_views = max(max_views, int(it.get("views", 0) or 0))
+        max_comments = max(max_comments, int(it.get("comments", 0) or 0))
+        max_likes = max(max_likes, int(it.get("likes", 0) or 0))
+        for emoji, cnt in (it.get("reactions", {}) or {}).items():
+            breakdown[emoji] = max(breakdown.get(emoji, 0), int(cnt or 0))
+    return max_views, max_comments, max_likes, breakdown
+
 # === 2a. Выбор топ-постов за период по метрикам ===
 async def process_top_posts(client: TelegramClient, ch: str, period_days: float, top_counts: dict, desired_total: int | None = None):
     print(f"== Top posts mode: channel {ch}, period_days={period_days}, counts={top_counts}")
@@ -182,27 +247,15 @@ async def process_top_posts(client: TelegramClient, ch: str, period_days: float,
         if msg_dt < since_dt:
             break
 
-        # Считываем реакции и просмотры (если доступны)
-        likes = 0
-        comments = int(getattr(m, 'replies', None).replies if getattr(m, 'replies', None) else 0)
-        views = int(getattr(m, 'views', 0) or 0)
-
-        try:
-            r = getattr(m, 'reactions', None)
-            if r and getattr(r, 'results', None):
-                for res in r.results:
-                    emoji = getattr(res, 'reaction', None)
-                    count = int(getattr(res, 'count', 0) or 0)
-                    # Считаем любые реакции как лайки, либо фильтровать по \u2764\ufe0f
-                    likes += count
-        except Exception:
-            pass
+        # Считываем просмотры, комментарии, лайки (сумма реакций) и разбивку по эмодзи
+        views, comments, likes, reactions_breakdown = _extract_message_metrics(m)
 
         collected.append({
             'message': m,
             'likes': likes,
             'comments': comments,
             'views': views,
+            'reactions': reactions_breakdown,
         })
 
     print(f"Collected {len(collected)} messages in period for {ch}")
@@ -313,17 +366,19 @@ async def process_top_posts(client: TelegramClient, ch: str, period_days: float,
         root_id = root_msg.id
         original_ids = [gm.id for gm in group_members]
 
-        # Для метрик возьмем максимум по группе (обычно они одинаковы)
+        # Для метрик возьмем максимум по группе (обычно одинаковы)
         ids_set = set(original_ids)
-        grouped_likes = 0
-        grouped_comments = 0
-        grouped_views = 0
+        metrics_to_merge = []
         for it in collected:
             mid = it['message'].id
             if mid in ids_set:
-                grouped_likes = max(grouped_likes, int(it.get('likes', 0) or 0))
-                grouped_comments = max(grouped_comments, int(it.get('comments', 0) or 0))
-                grouped_views = max(grouped_views, int(it.get('views', 0) or 0))
+                metrics_to_merge.append({
+                    "views": it.get("views", 0),
+                    "comments": it.get("comments", 0),
+                    "likes": it.get("likes", 0),
+                    "reactions": it.get("reactions", {}) or {},
+                })
+        grouped_views, grouped_comments, grouped_likes, grouped_reactions = _merge_group_metrics(metrics_to_merge)
 
         # --- Собираем данные для сохранения в Supabase ---
         post_to_save = {
@@ -341,6 +396,7 @@ async def process_top_posts(client: TelegramClient, ch: str, period_days: float,
             "original_views": grouped_views,
             "original_likes": grouped_likes,
             "original_comments": grouped_comments,
+            "original_reactions": grouped_reactions,
         }
         post_id = save_post(post_to_save)
         if post_id and media_paths:
@@ -401,6 +457,13 @@ async def process_channel(client: TelegramClient, ch: str, limit: int):
         root_id = root_msg.id
         original_ids = [gm.id for gm in group]
 
+        # Собираем метрики по группе
+        metrics_to_merge = []
+        for gm in group:
+            v, c, l, rmap = _extract_message_metrics(gm)
+            metrics_to_merge.append({"views": v, "comments": c, "likes": l, "reactions": rmap})
+        grouped_views, grouped_comments, grouped_likes, grouped_reactions = _merge_group_metrics(metrics_to_merge)
+
         post_to_save = {
             "source_channel": ch,
             "original_message_id": root_id,
@@ -413,7 +476,10 @@ async def process_channel(client: TelegramClient, ch: str, limit: int):
             "media_count": len(media_paths),
             "is_merged": len(group) > 1,
             "is_top_post": False,
-            "original_views": max(int(getattr(gm, "views", 0) or 0) for gm in group),
+            "original_views": grouped_views,
+            "original_likes": grouped_likes,
+            "original_comments": grouped_comments,
+            "original_reactions": grouped_reactions,
         }
         
         # --- Сохраняем пост и медиа ---

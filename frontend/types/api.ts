@@ -40,6 +40,9 @@ export type Post = {
   source_channel: string;
   original_message_id: number | string;
   original_views?: number | null;
+  original_likes?: number | null;
+  original_comments?: number | null;
+  original_reactions?: Record<string, number> | null;
   is_top_post?: boolean;
   content?: string | null;
   translated_content?: string | null;
@@ -60,5 +63,3 @@ export type TranslateResult = {
 export type ImageTranslateResult = {
   imageBase64: string;
 };
-
-

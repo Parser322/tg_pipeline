@@ -4,7 +4,7 @@ import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import type { Post, MediaItem } from '@/types/api';
-import { Eye, Star, Languages, Trash2 } from 'lucide-react';
+import { Eye, Star, Languages, Trash2, MessageSquare, Sparkles } from 'lucide-react';
 
 type PostCardProps = {
   post: Post;
@@ -22,12 +22,61 @@ const PostCard = ({ post, onTranslate, onDelete }: PostCardProps) => {
             <p className='text-xs text-muted-foreground mt-0.5'>ID: {post.original_message_id}</p>
           </div>
           <div className='flex gap-2 items-center shrink-0'>
-            <Badge variant='secondary' className='text-xs px-2 py-1 rounded-md font-medium flex items-center gap-1'>
+            <Badge
+              variant='secondary'
+              className='text-xs px-2 py-1 rounded-md font-medium flex items-center gap-1'
+            >
               <Eye className='h-3.5 w-3.5' />
               {post.original_views || 0}
             </Badge>
+            {/* Разбивка по эмодзи как в Telegram */}
+            {post.original_reactions && Object.keys(post.original_reactions).length > 0 ? (
+              <div className='flex gap-1 items-center'>
+                {Object.entries(post.original_reactions)
+                  .sort((a, b) => (b[1] || 0) - (a[1] || 0))
+                  .slice(0, 6)
+                  .map(([emoji, count]) => {
+                    const isCustom = emoji.startsWith('custom:') || emoji === 'unknown';
+                    return (
+                      <Badge
+                        key={emoji}
+                        variant='secondary'
+                        className='text-xs px-2 py-1 rounded-md font-medium flex items-center gap-1'
+                      >
+                        {isCustom ? (
+                          <Sparkles className='h-3.5 w-3.5' />
+                        ) : (
+                          <span className='text-base leading-none'>{emoji}</span>
+                        )}
+                        {count || 0}
+                      </Badge>
+                    );
+                  })}
+              </div>
+            ) : (
+              // Фолбэк: показываем суммарные реакции, если нет разбивки
+              post.original_likes !== undefined && (
+                <Badge
+                  variant='secondary'
+                  className='text-xs px-2 py-1 rounded-md font-medium flex items-center gap-1'
+                >
+                  <span className='text-base leading-none'>❤️</span>
+                  {post.original_likes || 0}
+                </Badge>
+              )
+            )}
+            <Badge
+              variant='secondary'
+              className='text-xs px-2 py-1 rounded-md font-medium flex items-center gap-1'
+            >
+              <MessageSquare className='h-3.5 w-3.5' />
+              {post.original_comments || 0}
+            </Badge>
             {post.is_top_post && (
-              <Badge variant='secondary' className='text-xs px-2 py-1 rounded-md font-medium flex items-center gap-1'>
+              <Badge
+                variant='secondary'
+                className='text-xs px-2 py-1 rounded-md font-medium flex items-center gap-1'
+              >
                 <Star className='h-3.5 w-3.5 text-yellow-500' />
               </Badge>
             )}
@@ -114,6 +163,3 @@ const PostCard = ({ post, onTranslate, onDelete }: PostCardProps) => {
 };
 
 export default PostCard;
-
-
-
