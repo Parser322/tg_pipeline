@@ -12,7 +12,6 @@ import { NumberInput } from './ui/number-input';
 import { Switch } from './ui/switch';
 import { ChannelInput } from './ui/channel-input';
 import { Alert, AlertDescription } from './ui/alert';
-import PostsList from './PostsList';
 
 export default function Dashboard() {
   const { status, error, success, runPipeline, stopPipeline, isLoading } = usePipelineContext();
@@ -53,7 +52,9 @@ export default function Dashboard() {
 
   const handleRun = () => {
     if (validationError) return;
-    const channelUrl = channelUsername.startsWith('@') ? `t.me/${channelUsername.slice(1)}` : `t.me/${channelUsername}`;
+    const channelUrl = channelUsername.startsWith('@')
+      ? `t.me/${channelUsername.slice(1)}`
+      : `t.me/${channelUsername}`;
     runPipeline(postLimit, periodHours, channelUrl, isTopPosts);
   };
 
@@ -242,14 +243,7 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
-
-        <div className='mt-3'>
-          <PostsList />
-        </div>
       </div>
     </div>
   );
 }
-
-
-

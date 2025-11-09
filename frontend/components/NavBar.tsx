@@ -11,11 +11,15 @@ type NavItemProps = {
 function NavItem({ href, label }: NavItemProps) {
   const pathname = usePathname();
   const isActive = pathname === href;
-  const base = 'text-sm transition-colors';
-  const active = 'text-foreground';
-  const inactive = 'text-muted-foreground hover:text-foreground';
+  const base = 'text-sm transition-colors block rounded-md px-3 py-2';
+  const active = 'bg-accent text-foreground font-medium';
+  const inactive = 'text-muted-foreground hover:text-foreground hover:bg-accent/50';
   return (
-    <Link href={href} aria-current={isActive ? 'page' : undefined} className={`${base} ${isActive ? active : inactive}`}>
+    <Link
+      href={href}
+      aria-current={isActive ? 'page' : undefined}
+      className={`${base} ${isActive ? active : inactive}`}
+    >
       {label}
     </Link>
   );
@@ -23,13 +27,16 @@ function NavItem({ href, label }: NavItemProps) {
 
 export default function NavBar() {
   return (
-    <header className='border-b'>
-      <nav className='max-w-7xl mx-auto px-6 h-12 flex items-center gap-4'>
+    <div className='h-full p-4'>
+      <div className='mb-4 px-3'>
+        <Link href='/' className='text-base font-semibold'>
+          Parser322
+        </Link>
+      </div>
+      <nav className='flex flex-col gap-1'>
         <NavItem href='/' label='Главная' />
+        <NavItem href='/posts' label='Посты' />
       </nav>
-    </header>
+    </div>
   );
 }
-
-
-

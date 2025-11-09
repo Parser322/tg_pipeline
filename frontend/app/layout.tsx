@@ -34,13 +34,17 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang='ru'>
       <body>
-        <NavBar />
         <Providers>
-          <div className='max-w-7xl mx-auto px-6 py-6'>{children}</div>
+          <div className='min-h-screen flex'>
+            <aside className='w-64 border-r'>
+              <NavBar />
+            </aside>
+            <main className='flex-1'>
+              <div className='max-w-7xl mx-auto px-6 py-6'>{children}</div>
+            </main>
+          </div>
         </Providers>
       </body>
     </html>
   );
 }
-
-
