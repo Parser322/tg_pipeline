@@ -127,6 +127,43 @@ async def download_and_brand(client, message):
         print("Media download error:", e)
     return paths
 
+def group_messages_into_post_units(messages):
+    """
+    Группирует сообщения в единицы постов:
+    - Сообщения с одинаковым grouped_id объединяются в один пост (альбом).
+    - Обычные сообщения без grouped_id идут как отдельные посты.
+    Порядок сохраняется как в исходном списке (обычно от новых к старым).
+    """
+    units = []
+    if not messages:
+        return units
+    # Сгруппируем по grouped_id
+    grouped_map = {}
+    for msg in messages:
+        gid = getattr(msg, "grouped_id", None)
+        if gid:
+            grouped_map.setdefault(gid, []).append(msg)
+    seen_gids = set()
+    seen_mids = set()
+    for msg in messages:
+        gid = getattr(msg, "grouped_id", None)
+        if gid:
+            if gid in seen_gids:
+                continue
+            seen_gids.add(gid)
+            group = grouped_map.get(gid, [])
+            # Стабильный порядок внутри альбома: по дате/ID возрастанию
+            group_sorted = sorted(group, key=lambda x: (x.date, x.id))
+            units.append(group_sorted)
+            for m in group_sorted:
+                seen_mids.add(m.id)
+        else:
+            if msg.id in seen_mids:
+                continue
+            units.append([msg])
+            seen_mids.add(msg.id)
+    return units
+
 # === 2a. Выбор топ-постов за период по метрикам ===
 async def process_top_posts(client: TelegramClient, ch: str, period_days: float, top_counts: dict, desired_total: int | None = None):
     print(f"== Top posts mode: channel {ch}, period_days={period_days}, counts={top_counts}")
@@ -227,41 +264,92 @@ async def process_top_posts(client: TelegramClient, ch: str, period_days: float,
         
     print(f"Final messages to send: {len(unique_msgs)}")
 
-    # Проставим total для прогресса
-    set_total(len(unique_msgs))
+    # Проставим total для прогресса (учитываем альбомы как один пост)
+    counted = set()
+    total_units = 0
+    for item in unique_msgs:
+        m = item['message']
+        gid = getattr(m, 'grouped_id', None)
+        key = ("gid", gid) if gid else ("mid", m.id)
+        if key in counted:
+            continue
+        counted.add(key)
+        total_units += 1
+    set_total(total_units)
 
     # Отправляем в целевой канал, соблюдая текущие правила склейки/медиа
     # Здесь без склейки; отправляем как есть
+    used_album_keys = set()
     for item in unique_msgs:
         m = item['message']
-        caption = (m.message or "").strip()
-        media_paths = await download_and_brand(client, m)
-        
+        gid = getattr(m, 'grouped_id', None)
+        album_key = ("gid", gid) if gid else ("mid", m.id)
+        if album_key in used_album_keys:
+            continue
+        used_album_keys.add(album_key)
+
+        # Собираем участников альбома из уже собранного пула за период
+        if gid:
+            group_members = [x['message'] for x in collected if getattr(x['message'], 'grouped_id', None) == gid]
+        else:
+            group_members = [m]
+        # Порядок внутри группы — по дате/ID
+        group_members = sorted(group_members, key=lambda x: (x.date, x.id))
+
+        # Подпись — первая непустая среди группы (обычно у первого элемента альбома)
+        caption = ""
+        for gm in group_members:
+            t = (gm.message or "").strip()
+            if t:
+                caption = t
+                break
+
+        # Скачиваем и брендируем все медиа из альбома
+        media_paths = []
+        for gm in group_members:
+            media_paths.extend(await download_and_brand(client, gm))
+
+        root_msg = group_members[0]
+        root_id = root_msg.id
+        original_ids = [gm.id for gm in group_members]
+
+        # Для метрик возьмем максимум по группе (обычно они одинаковы)
+        ids_set = set(original_ids)
+        grouped_likes = 0
+        grouped_comments = 0
+        grouped_views = 0
+        for it in collected:
+            mid = it['message'].id
+            if mid in ids_set:
+                grouped_likes = max(grouped_likes, int(it.get('likes', 0) or 0))
+                grouped_comments = max(grouped_comments, int(it.get('comments', 0) or 0))
+                grouped_views = max(grouped_views, int(it.get('views', 0) or 0))
+
         # --- Собираем данные для сохранения в Supabase ---
         post_to_save = {
             "source_channel": ch,
-            "original_message_id": m.id,
-            "original_ids": [m.id],
-            "original_date": m.date,
+            "original_message_id": root_id,
+            "original_ids": original_ids,
+            "original_date": root_msg.date,
             "content": caption,
             "translated_content": None, # Будет заполнено позже
             "target_lang": None,      # Будет заполнено позже
             "has_media": bool(media_paths),
             "media_count": len(media_paths),
-            "is_merged": False,
+            "is_merged": len(group_members) > 1,
             "is_top_post": True,
-            "original_views": item.get('views', 0),
-            "original_likes": item.get('likes', 0),
-            "original_comments": item.get('comments', 0),
+            "original_views": grouped_views,
+            "original_likes": grouped_likes,
+            "original_comments": grouped_comments,
         }
         post_id = save_post(post_to_save)
         if post_id and media_paths:
-            media_items = upload_media_files(media_paths, ch, m.id)
+            media_items = upload_media_files(media_paths, ch, root_id)
             if media_items:
                 save_post_media(post_id, media_items)
 
         # --- ОТПРАВКА В TELEGRAM ОТКЛЮЧЕНА ---
-        print(f"Post id={m.id} saved to Supabase. Skipping Telegram send.")
+        print(f"Post album_key={album_key} saved to Supabase. Skipping Telegram send.")
 
         # Чистим кэш после сохранения
         for p in media_paths:
@@ -276,51 +364,62 @@ async def process_channel(client: TelegramClient, ch: str, limit: int):
     entity = await client.get_entity(ch)
     # last_id = get_last_id(ch) # Проверка на дубликаты отключена
 
-    # Запрашиваем последние N постов без учета min_id
-    all_msgs = [m async for m in client.iter_messages(entity, limit=limit*2)]  # Берём больше для фильтрации
+    # Запрашиваем последние сообщения без учета min_id
+    all_msgs = [m async for m in client.iter_messages(entity, limit=limit*4)]  # Берём больше, чтобы не резать альбом
     if not all_msgs:
         print(f"No messages found for {ch}")
         set_total(0)
         return
 
-    # Больше не фильтруем видео/GIF — включаем любые сообщения
-    msgs = all_msgs[:limit]
-    set_total(len(msgs)) # Устанавливаем количество для обработки
-    msgs.reverse()  # от старых к новым
+    # Формируем единицы постов с учетом альбомов
+    units = group_messages_into_post_units(all_msgs)
+    selected_units = units[:limit]
+    set_total(len(selected_units))  # считаем посты (альбомы), а не сообщения
+    selected_units.reverse()  # от старых к новым
 
-    for m in msgs:
+    for group in selected_units:
         # На каждой итерации даём возможность циклу событий обработать отмену
         await asyncio.sleep(0)
 
-        # Сообщения уже отфильтрованы, дополнительная проверка не нужна
+        # Стабильный порядок внутри группы
+        group = sorted(group, key=lambda x: (x.date, x.id))
 
-        text = (m.message or "").strip()
-        media_paths = await download_and_brand(client, m)
+        # Подпись — первая непустая среди группы
+        caption = ""
+        for gm in group:
+            t = (gm.message or "").strip()
+            if t:
+                caption = t
+                break
 
-        # --- Логика склейки полностью удалена ---
+        # Скачиваем и брендируем все медиа из группы
+        media_paths = []
+        for gm in group:
+            media_paths.extend(await download_and_brand(client, gm))
 
-        # --- Собираем данные для сохранения в Supabase ---
-        caption = (text or "").strip()
+        root_msg = group[0]
+        root_id = root_msg.id
+        original_ids = [gm.id for gm in group]
 
         post_to_save = {
             "source_channel": ch,
-            "original_message_id": m.id,
-            "original_ids": [m.id], # Теперь всегда один ID
-            "original_date": m.date,
+            "original_message_id": root_id,
+            "original_ids": original_ids, # один или несколько ID альбома
+            "original_date": root_msg.date,
             "content": caption,
             "translated_content": None, # Будет заполнено позже
             "target_lang": None,      # Будет заполнено позже
             "has_media": bool(media_paths),
             "media_count": len(media_paths),
-            "is_merged": False, # Склейка отключена
+            "is_merged": len(group) > 1,
             "is_top_post": False,
-            "original_views": m.views or 0,
+            "original_views": max(int(getattr(gm, "views", 0) or 0) for gm in group),
         }
         
         # --- Сохраняем пост и медиа ---
         post_id = save_post(post_to_save)
         if post_id and media_paths:
-            media_items = upload_media_files(media_paths, ch, m.id)
+            media_items = upload_media_files(media_paths, ch, root_id)
             if media_items:
                 save_post_media(post_id, media_items)
 
@@ -381,9 +480,9 @@ async def main(limit: int = 100, period_hours: int | None = None, channel_url: s
         # Определяем список каналов
         channels = [channel_url] if channel_url else CFG["channels"]
         
-        # Определяем режим парсинга (топ посты или обычный)
+        # Определяем режим парсинга (только по флагу с фронта)
         top_cfg = (CFG.get("top_posts") or {})
-        enabled_top = is_top_posts or bool(top_cfg.get("enabled", False))
+        enabled_top = bool(is_top_posts)
         
         if enabled_top:
             # Период из запроса в часах имеет приоритет над конфигом в днях
