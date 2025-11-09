@@ -2,9 +2,9 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from './button';
 
-type NumberInputProps = React.HTMLAttributes<HTMLDivElement> & {
+type NumberInputProps = Omit<React.HTMLAttributes<HTMLDivElement>, 'onChange'> & {
   value: number;
-  onChange?: (value: number) => void;
+  onValueChange?: (value: number) => void;
   min?: number;
   max?: number;
   step?: number;
@@ -18,7 +18,7 @@ const NumberInput = React.forwardRef<HTMLDivElement, NumberInputProps>(
     {
       className,
       value,
-      onChange,
+      onValueChange,
       min = 0,
       max = Infinity,
       step = 1,
@@ -31,18 +31,18 @@ const NumberInput = React.forwardRef<HTMLDivElement, NumberInputProps>(
   ) => {
     const handleIncrement = () => {
       const newValue = Math.min(max, (value || 0) + step);
-      onChange?.(newValue);
+      onValueChange?.(newValue);
     };
 
     const handleDecrement = () => {
       const newValue = Math.max(min, (value || 0) - step);
-      onChange?.(newValue);
+      onValueChange?.(newValue);
     };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const newValue = parseInt(e.target.value) || 0;
       if (newValue >= min && newValue <= max) {
-        onChange?.(newValue);
+        onValueChange?.(newValue);
       }
     };
 

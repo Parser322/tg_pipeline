@@ -137,7 +137,7 @@ export default function Dashboard() {
                 <NumberInput
                   label='Количество постов'
                   value={postLimit}
-                  onChange={(value) => setPostLimitValue(value)}
+                  onValueChange={(value) => setPostLimitValue(value)}
                   min={1}
                   max={1000}
                   disabled={status.is_running}
@@ -149,7 +149,7 @@ export default function Dashboard() {
                     <NumberInput
                       label='Период в часах'
                       value={periodHours}
-                      onChange={setPeriodHours}
+                      onValueChange={setPeriodHours}
                       min={1}
                       max={168}
                       disabled={status.is_running}
