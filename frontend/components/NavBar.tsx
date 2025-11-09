@@ -2,16 +2,18 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import React from 'react';
+import { Home, Newspaper } from 'lucide-react';
 
 type NavItemProps = {
   href: string;
   label: string;
+  icon: React.ComponentType<{ className?: string }>;
 };
 
-function NavItem({ href, label }: NavItemProps) {
+function NavItem({ href, label, icon: Icon }: NavItemProps) {
   const pathname = usePathname();
   const isActive = pathname === href;
-  const base = 'text-sm transition-colors block rounded-md px-3 py-2';
+  const base = 'text-sm transition-colors flex items-center gap-2 rounded-md px-3 py-2';
   const active = 'bg-accent text-foreground font-medium';
   const inactive = 'text-muted-foreground hover:text-foreground hover:bg-accent/50';
   return (
@@ -20,7 +22,8 @@ function NavItem({ href, label }: NavItemProps) {
       aria-current={isActive ? 'page' : undefined}
       className={`${base} ${isActive ? active : inactive}`}
     >
-      {label}
+      <Icon className='h-4 w-4' />
+      <span>{label}</span>
     </Link>
   );
 }
@@ -34,8 +37,8 @@ export default function NavBar() {
         </Link>
       </div>
       <nav className='flex flex-col gap-1'>
-        <NavItem href='/' label='Главная' />
-        <NavItem href='/posts' label='Посты' />
+        <NavItem href='/' label='Главная' icon={Home} />
+        <NavItem href='/posts' label='Посты' icon={Newspaper} />
       </nav>
     </div>
   );

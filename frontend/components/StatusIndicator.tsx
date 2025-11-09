@@ -22,12 +22,12 @@ const StatusIndicator = ({ isRunning, finished, processed, total }: StatusIndica
 
   const getStatusText = () => {
     if (isRunning) {
-      return `В процессе... Обработано ${processed} из ${total}`;
+      return `В процессе · ${processed}/${total}`;
     }
     if (finished) {
-      return `Завершено. Обработано ${processed} из ${total}`;
+      return `Завершено · ${processed}/${total}`;
     }
-    return 'Готов к запуску';
+    return 'Готов';
   };
 
   return (

@@ -56,7 +56,7 @@ const ChannelInput = React.forwardRef<HTMLDivElement, ChannelInputProps>(
       }
     };
 
-    const buttonVariant = isSaved && !isModified ? 'default' : 'secondary';
+    const buttonVariant = (isSaved && !isModified ? 'secondary' : 'outline') as any;
     const isButtonDisabled = disabled || !inputValue.trim();
     const buttonLabel = isSaved && !isModified ? 'Удалить сохранённый канал' : 'Сохранить канал';
 
@@ -76,7 +76,7 @@ const ChannelInput = React.forwardRef<HTMLDivElement, ChannelInputProps>(
           <div className='flex items-center pr-1'>
             <Button
               type='button'
-              variant={buttonVariant as any}
+              variant={buttonVariant}
               size='sm'
               className='h-6 w-6 p-0 rounded-full'
               onClick={handleButtonClick}

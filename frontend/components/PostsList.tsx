@@ -5,7 +5,7 @@ import { usePosts } from '@/hooks/usePosts';
 import { usePipelineContext } from '@/contexts/PipelineContext';
 import PostCard from './PostCard';
 import { Button } from './ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Trash2 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 
 const PostsList = () => {
@@ -48,37 +48,42 @@ const PostsList = () => {
   };
 
   return (
-    <Card className='shadow-sm rounded-lg'>
-      <CardHeader className='flex flex-row items-center justify-between'>
-        <CardTitle className='text-lg font-bold'>Сохранённые посты</CardTitle>
+    <div>
+      <div className='mb-4 flex items-center justify-between'>
+        <h1 className='text-xl md:text-2xl font-bold'>Сохранённые посты</h1>
         {posts.length > 0 && (
-          <Button onClick={handleDeleteAllClick} variant='destructive' size='sm'>
-            Очистить все
+          <Button
+            onClick={handleDeleteAllClick}
+            variant='destructive'
+            size='icon'
+            className='h-9 w-9'
+            aria-label='Очистить все'
+            title='Очистить все'
+          >
+            <Trash2 className='h-4 w-4' />
           </Button>
         )}
-      </CardHeader>
-      <CardContent>
-        {message && (
-          <Alert className='mb-3 border-green-200 bg-green-50'>
-            <AlertDescription className='text-green-700'>{message}</AlertDescription>
-          </Alert>
-        )}
-        {posts.length === 0 ? (
-          <p className='text-sm text-muted-foreground'>Постов пока нет</p>
-        ) : (
-          <div className='space-y-3'>
-            {posts.map((post) => (
-              <PostCard
-                key={post.id}
-                post={post}
-                onTranslate={handleTranslatePost}
-                onDelete={handleDeletePost}
-              />
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      </div>
+      {message && (
+        <Alert className='mb-3 border-green-200 bg-green-50'>
+          <AlertDescription className='text-green-700'>{message}</AlertDescription>
+        </Alert>
+      )}
+      {posts.length === 0 ? (
+        <p className='text-sm text-muted-foreground'>Постов пока нет</p>
+      ) : (
+        <div className='space-y-3'>
+          {posts.map((post) => (
+            <PostCard
+              key={post.id}
+              post={post}
+              onTranslate={handleTranslatePost}
+              onDelete={handleDeletePost}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   );
 };
 

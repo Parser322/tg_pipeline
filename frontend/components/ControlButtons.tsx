@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from './ui/button';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Play, Square } from 'lucide-react';
 
 type ControlButtonsProps = {
   onRun: () => void;
@@ -13,16 +13,29 @@ type ControlButtonsProps = {
 const ControlButtons = ({ onRun, onStop, isRunning, disabled, loading }: ControlButtonsProps) => {
   if (loading) {
     return (
-      <Button disabled size='sm' variant={isRunning ? 'outline' : 'default'} className='gap-2'>
+      <Button
+        disabled
+        size='icon'
+        variant={isRunning ? 'outline' : 'secondary'}
+        className='h-9 w-9'
+        aria-label={isRunning ? 'Остановка...' : 'Запуск...'}
+        title={isRunning ? 'Остановка...' : 'Запуск...'}
+      >
         <Loader2 className='h-4 w-4 animate-spin' />
-        {isRunning ? 'Остановка...' : 'Запуск...'}
       </Button>
     );
   }
   if (isRunning) {
     return (
-      <Button onClick={onStop} variant='outline' size='sm' className='border-input' aria-label='Остановить парсер' title='Остановить'>
-        Остановить
+      <Button
+        onClick={onStop}
+        variant='outline'
+        size='icon'
+        className='border-input h-9 w-9'
+        aria-label='Остановить парсер'
+        title='Остановить'
+      >
+        <Square className='h-4 w-4' />
       </Button>
     );
   }
@@ -31,12 +44,13 @@ const ControlButtons = ({ onRun, onStop, isRunning, disabled, loading }: Control
     <Button
       onClick={onRun}
       disabled={disabled}
-      size='sm'
-      className='bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed'
+      size='icon'
+      variant='secondary'
+      className='h-9 w-9 disabled:opacity-50 disabled:cursor-not-allowed'
       aria-label='Запустить парсер'
       title='Запустить'
     >
-      Запустить
+      <Play className='h-4 w-4' />
     </Button>
   );
 };

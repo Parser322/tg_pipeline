@@ -133,13 +133,13 @@ export default function Dashboard() {
 
   return (
     <div className='min-h-screen bg-background'>
-      <div className='max-w-7xl mx-auto px-6 py-8'>
-        <div className='mb-8'>
-          <h1 className='text-2xl font-bold mb-1'>Parser322</h1>
+      <div>
+        <div className='mb-4'>
+          <h1 className='text-xl md:text-2xl font-bold mb-1'>Панель управления парсером</h1>
         </div>
 
         <Card className='shadow-sm rounded-lg'>
-          <CardContent className='p-6 space-y-6'>
+          <CardContent className='p-4 space-y-4'>
             <div>
               <label className='block text-sm font-medium mb-2'>Канал</label>
               <ChannelInput
@@ -155,8 +155,8 @@ export default function Dashboard() {
 
             <hr className='border-border' />
 
-            <div className='flex items-start gap-8 h-20'>
-              <div className='flex gap-8'>
+            <div className='flex flex-col gap-6 md:flex-row md:items-start md:gap-8'>
+              <div className='grid grid-cols-1 sm:grid-cols-2 gap-4 md:flex md:gap-8'>
                 <NumberInput
                   label='Количество постов'
                   value={postLimit}
@@ -165,60 +165,46 @@ export default function Dashboard() {
                   max={1000}
                   disabled={status.is_running || isLoading}
                 />
+                <NumberInput
+                  label='Период в часах'
+                  value={periodHours}
+                  onValueChange={setPeriodHours}
+                  min={1}
+                  max={168}
+                  disabled={status.is_running || isLoading}
+                />
+              </div>
 
-                <div className='relative'>
-                  <div className='absolute left-0 top-0 h-20 w-px bg-border'></div>
-                  <div className='pl-8'>
-                    <NumberInput
-                      label='Период в часах'
-                      value={periodHours}
-                      onValueChange={setPeriodHours}
-                      min={1}
-                      max={168}
-                      disabled={status.is_running || isLoading}
-                    />
-                  </div>
+              <div className='relative md:pl-8'>
+                <div className='hidden md:block absolute left-0 top-0 bottom-0 w-px bg-border'></div>
+                <div className='flex items-center justify-between md:justify-start gap-6'>
+                  <label className='text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70'>
+                    Только топ посты
+                  </label>
+                  <Switch
+                    checked={isTopPosts}
+                    onCheckedChange={setIsTopPosts}
+                    disabled={status.is_running || isLoading}
+                  />
                 </div>
               </div>
 
-              <div className='relative'>
-                <div className='absolute left-0 top-0 h-20 w-px bg-border'></div>
-                <div className='pl-8'>
-                  <div className='flex items-start justify-between gap-8'>
-                    <div>
-                      <label className='text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70'>
-                        Только топ посты
-                      </label>
-                    </div>
-                    <Switch
-                      checked={isTopPosts}
-                      onCheckedChange={setIsTopPosts}
-                      disabled={status.is_running || isLoading}
-                      className='mt-0.5'
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className='relative'>
-                <div className='absolute left-0 top-0 h-20 w-px bg-border'></div>
-                <div className='pl-8 flex items-center h-20'>
-                  <div className='flex items-center gap-3'>
-                    <ControlButtons
-                      onRun={handleRun}
-                      onStop={stopPipeline}
-                      isRunning={status.is_running}
-                      disabled={!!validationError || isLoading}
-                      loading={isLoading}
-                    />
-
-                    <StatusIndicator
-                      isRunning={status.is_running}
-                      finished={status.finished}
-                      processed={status.processed}
-                      total={status.total}
-                    />
-                  </div>
+              <div className='relative md:pl-8'>
+                <div className='hidden md:block absolute left-0 top-0 bottom-0 w-px bg-border'></div>
+                <div className='flex items-center gap-3'>
+                  <ControlButtons
+                    onRun={handleRun}
+                    onStop={stopPipeline}
+                    isRunning={status.is_running}
+                    disabled={!!validationError || isLoading}
+                    loading={isLoading}
+                  />
+                  <StatusIndicator
+                    isRunning={status.is_running}
+                    finished={status.finished}
+                    processed={status.processed}
+                    total={status.total}
+                  />
                 </div>
               </div>
             </div>

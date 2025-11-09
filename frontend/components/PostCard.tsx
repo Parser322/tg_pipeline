@@ -4,6 +4,7 @@ import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import type { Post, MediaItem } from '@/types/api';
+import { Eye, Star, Languages, Trash2 } from 'lucide-react';
 
 type PostCardProps = {
   post: Post;
@@ -21,12 +22,13 @@ const PostCard = ({ post, onTranslate, onDelete }: PostCardProps) => {
             <p className='text-xs text-muted-foreground mt-0.5'>ID: {post.original_message_id}</p>
           </div>
           <div className='flex gap-2 items-center shrink-0'>
-            <Badge variant='secondary' className='text-xs px-2 py-1 rounded-md font-medium'>
-              👁 {post.original_views || 0}
+            <Badge variant='secondary' className='text-xs px-2 py-1 rounded-md font-medium flex items-center gap-1'>
+              <Eye className='h-3.5 w-3.5' />
+              {post.original_views || 0}
             </Badge>
             {post.is_top_post && (
-              <Badge variant='secondary' className='text-xs px-2 py-1 rounded-md font-medium'>
-                ⭐
+              <Badge variant='secondary' className='text-xs px-2 py-1 rounded-md font-medium flex items-center gap-1'>
+                <Star className='h-3.5 w-3.5 text-yellow-500' />
               </Badge>
             )}
           </div>
@@ -81,13 +83,13 @@ const PostCard = ({ post, onTranslate, onDelete }: PostCardProps) => {
           {!post.translated_content && post.content && (
             <Button
               onClick={() => onTranslate(post.id, 'EN')}
-              size='sm'
+              size='icon'
               variant='outline'
-              className='flex-1'
+              className='h-9 w-9'
               aria-label='Перевести на английский'
               title='Перевести на английский'
             >
-              Перевести на английский
+              <Languages className='h-4 w-4' />
             </Button>
           )}
           <Button
@@ -97,13 +99,13 @@ const PostCard = ({ post, onTranslate, onDelete }: PostCardProps) => {
                 onDelete(post.id);
               }
             }}
-            size='sm'
+            size='icon'
             variant='destructive'
-            className={!post.translated_content && post.content ? 'w-auto' : 'w-full'}
+            className='h-9 w-9'
             aria-label='Удалить пост'
             title='Удалить пост'
           >
-            Удалить
+            <Trash2 className='h-4 w-4' />
           </Button>
         </div>
       </CardContent>
