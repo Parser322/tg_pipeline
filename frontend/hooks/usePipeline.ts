@@ -34,21 +34,26 @@ export const usePipeline = () => {
     }
   }, []);
 
-  const runPipeline = useCallback(async (postLimit: number, periodHours: number, channelUrl: string, isTopPosts: boolean) => {
-    setIsLoading(true);
-    setError(null);
-    setSuccess(null);
+  const runPipeline = useCallback(
+    async (postLimit: number, periodHours: number, channelUrl: string, isTopPosts: boolean) => {
+      setIsLoading(true);
+      setError(null);
+      setSuccess(null);
 
-    try {
-      const response = await pipelineAPI.run(postLimit, periodHours, channelUrl, isTopPosts);
-      setSuccess(response.data.message || null);
-    } catch (err: any) {
-      const errorMessage = (err as Error).message || MESSAGES.ERROR.PIPELINE_START;
-      setError(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+      try {
+        const response = await pipelineAPI.run(postLimit, periodHours, channelUrl, isTopPosts);
+        setSuccess(response.data.message || null);
+        // Сразу получаем актуальный статус и даем шанс эффекту запустить быстрый опрос
+        await fetchStatus();
+      } catch (err: any) {
+        const errorMessage = (err as Error).message || MESSAGES.ERROR.PIPELINE_START;
+        setError(errorMessage);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [fetchStatus]
+  );
 
   const stopPipeline = useCallback(async () => {
     setIsLoading(true);
@@ -57,13 +62,15 @@ export const usePipeline = () => {
     try {
       const response = await pipelineAPI.stop();
       setSuccess(response.data.message || null);
+      // Обновляем статус немедленно
+      await fetchStatus();
     } catch (err: any) {
       const errorMessage = (err as Error).message || MESSAGES.ERROR.PIPELINE_STOP;
       setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [fetchStatus]);
 
   const clearMessages = useCallback(() => {
     setError(null);
@@ -71,16 +78,17 @@ export const usePipeline = () => {
   }, []);
 
   useEffect(() => {
-    // Опрашиваем статус ТОЛЬКО когда процесс действительно идёт.
-    if (!status.is_running) {
+    // Опросим статус периодически всегда:
+    // - при активном процессе — быстро
+    // - в простое — реже, чтобы вовремя подхватывать переходы в running/finished
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-      return;
-    }
-    // Активный опрос при запущенном процессе
-    intervalRef.current = setInterval(fetchStatus, API_CONFIG.POLLING_INTERVAL);
+    const intervalMs = status.is_running
+      ? API_CONFIG.POLLING_INTERVAL
+      : API_CONFIG.IDLE_POLLING_INTERVAL;
+    intervalRef.current = setInterval(fetchStatus, intervalMs);
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -95,12 +103,9 @@ export const usePipeline = () => {
       if (document.visibilityState === 'visible') {
         // При возврате во вкладку — получить актуальный статус
         fetchStatus();
-        // Если процесс идёт и интервал не активен — возобновить
-        if (status.is_running && !intervalRef.current) {
-          intervalRef.current = setInterval(fetchStatus, API_CONFIG.POLLING_INTERVAL);
-        }
+        // Интервалы управляются основным эффектом; здесь ничего не запускаем
       } else {
-        // В фоне — останавливаем опрос
+        // В фоне — останавливаем опрос (он восстановится при возврате)
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
           intervalRef.current = null;
@@ -109,7 +114,7 @@ export const usePipeline = () => {
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => document.removeEventListener('visibilitychange', onVisibilityChange);
-  }, [status.is_running, fetchStatus]);
+  }, [fetchStatus]);
 
   // Разовое обновление при возврате фокуса окна
   useEffect(() => {
@@ -151,6 +156,3 @@ export const usePipeline = () => {
     clearMessages,
   };
 };
-
-
-
