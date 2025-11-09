@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import asyncio
+import os
 from pydantic import BaseModel
 
 # Импортируем вашу основную функцию и управление состоянием
@@ -23,8 +24,8 @@ from app.supabase_manager import (
 )
 from app.translation import translate_text
 
-# Инициализируем Supabase при старте приложения
-initialize_supabase()
+# Инициализацию Supabase выполняем лениво при первом обращении через _client().
+# Это ускоряет старт и избегает падения, если переменные окружения временно не заданы.
 
 app = FastAPI()
 
@@ -39,6 +40,36 @@ app.add_middleware(
 
 # Глобальная переменная для отслеживания задачи
 current_task: asyncio.Task = None
+
+@app.get("/health")
+async def health():
+    """Проверка готовности сервера и окружения."""
+    env_status = {
+        "SUPABASE_URL": bool(os.getenv("SUPABASE_URL")),
+        "SUPABASE_SERVICE_ROLE_KEY": bool(os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")),
+        "TELEGRAM_API_ID": bool(os.getenv("TELEGRAM_API_ID")),
+        "TELEGRAM_API_HASH": bool(os.getenv("TELEGRAM_API_HASH")),
+        "TELEGRAM_STRING_SESSION": bool(os.getenv("TELEGRAM_STRING_SESSION")),
+        "OPENAI_API_KEY": bool(os.getenv("OPENAI_API_KEY")),
+    }
+    # Проверим связь с Supabase через получение состояния
+    try:
+        state = get_state()
+        supabase_ok = isinstance(state, dict)
+    except Exception:
+        supabase_ok = False
+        state = {}
+    return {
+        "ok": True,
+        "env": env_status,
+        "supabase_ok": supabase_ok,
+        "state_sample": {
+            "processed": state.get("processed"),
+            "total": state.get("total"),
+            "is_running": state.get("is_running"),
+            "finished": state.get("finished"),
+        },
+    }
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
