@@ -16,8 +16,8 @@ const ControlButtons = ({ onRun, onStop, isRunning, disabled, loading }: Control
       <Button
         disabled
         size='icon'
-        variant={isRunning ? 'outline' : 'secondary'}
-        className='h-9 w-9'
+        variant={isRunning ? 'destructive' : 'default'}
+        className={isRunning ? 'h-9 w-9' : 'h-9 w-9 bg-green-500 text-white hover:bg-green-600'}
         aria-label={isRunning ? 'Остановка...' : 'Запуск...'}
         title={isRunning ? 'Остановка...' : 'Запуск...'}
       >
@@ -29,9 +29,9 @@ const ControlButtons = ({ onRun, onStop, isRunning, disabled, loading }: Control
     return (
       <Button
         onClick={onStop}
-        variant='outline'
+        variant='destructive'
         size='icon'
-        className='border-input h-9 w-9'
+        className='h-9 w-9'
         aria-label='Остановить парсер'
         title='Остановить'
       >
@@ -45,8 +45,8 @@ const ControlButtons = ({ onRun, onStop, isRunning, disabled, loading }: Control
       onClick={onRun}
       disabled={disabled}
       size='icon'
-      variant='secondary'
-      className='h-9 w-9 disabled:opacity-50 disabled:cursor-not-allowed'
+      variant='default'
+      className='h-9 w-9 bg-green-500 text-white hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed'
       aria-label='Запустить парсер'
       title='Запустить'
     >

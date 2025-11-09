@@ -42,7 +42,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               <MobileNav />
             </header>
             <div className='flex flex-1'>
-              <aside className='hidden md:block w-64 border-r'>
+              <aside className='hidden md:block w-56 border-r'>
               <NavBar />
               </aside>
               <main className='flex-1'>

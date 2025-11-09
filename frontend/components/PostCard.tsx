@@ -21,6 +21,8 @@ function isVideoMedia(m: MediaItem): boolean {
 
 const PostCard = ({ post, onTranslate, onDelete }: PostCardProps) => {
   const [activeTab, setActiveTab] = useState<'original' | 'translated'>('original');
+  const firstMedia: MediaItem | undefined =
+    post.media && post.media.length > 0 ? post.media[0] : undefined;
   return (
     <Card className='hover:shadow-md transition-shadow rounded-lg'>
       <CardContent className='p-4 space-y-3'>
@@ -40,39 +42,28 @@ const PostCard = ({ post, onTranslate, onDelete }: PostCardProps) => {
             )}
           </div>
         </div>
-        {post.media && post.media.length > 0 && (
-          <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
-            {post.media.map((m: MediaItem) => {
-              if (isVideoMedia(m)) {
-                return (
-                  <div key={m.id} className='rounded-md overflow-hidden border bg-black'>
-                    <video
-                      src={m.url}
-                      controls
-                      preload='metadata'
-                      className='w-full h-auto max-h-[600px] md:max-h-[720px]'
-                    />
-                  </div>
-                );
-              }
-              // image или gif
-              return (
-                <div key={m.id} className='rounded-md overflow-hidden border'>
-                  <Image
-                    src={m.url}
-                    alt=''
-                    width={m.width || 800}
-                    height={m.height || 600}
-                    className='w-full h-auto max-h-[600px] md:max-h-[720px] object-contain bg-muted'
-                    loading='lazy'
-                    unoptimized={((m.mime_type || '').toLowerCase() === 'image/gif') || m.url.toLowerCase().endsWith('.gif')}
-                    sizes='(max-width: 640px) 100vw, 50vw'
-                  />
-                </div>
-              );
-            })}
+        {firstMedia ? (
+          <div className='relative h-64 md:h-80 3xl:h-96 rounded-md overflow-hidden border bg-muted'>
+            {isVideoMedia(firstMedia) ? (
+              <video
+                src={firstMedia.url}
+                controls
+                preload='metadata'
+                className='w-full h-full object-contain bg-black'
+              />
+            ) : (
+              <Image
+                src={firstMedia.url}
+                alt=''
+                fill
+                className='object-contain'
+                loading='lazy'
+                unoptimized={((firstMedia.mime_type || '').toLowerCase() === 'image/gif') || firstMedia.url.toLowerCase().endsWith('.gif')}
+                sizes='(max-width: 640px) 100vw, 50vw'
+              />
+            )}
           </div>
-        )}
+        ) : null}
         <div className='space-y-2'>
           <div role='tablist' aria-label='Текст поста' className='flex items-center gap-1 pb-1'>
             <button

@@ -72,7 +72,7 @@ const PostsList = () => {
       {posts.length === 0 ? (
         <p className='text-sm text-muted-foreground'>Постов пока нет</p>
       ) : (
-        <div className='columns-1 sm:columns-2 lg:columns-3 2xl:columns-4 gap-x-4'>
+        <div className='columns-1 sm:columns-2 lg:columns-3 3xl:columns-4 gap-x-4'>
           {posts.map((post) => (
             <div key={post.id} className='mb-4 break-inside-avoid'>
               <PostCard post={post} onTranslate={handleTranslatePost} onDelete={handleDeletePost} />
