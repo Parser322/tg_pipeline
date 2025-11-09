@@ -3,9 +3,9 @@ import { cn } from '@/lib/utils';
 import { Button } from './button';
 import { Check } from 'lucide-react';
 
-type ChannelInputProps = React.HTMLAttributes<HTMLDivElement> & {
+type ChannelInputProps = Omit<React.HTMLAttributes<HTMLDivElement>, 'onChange'> & {
   value?: string;
-  onChange?: (value: string) => void;
+  onValueChange?: (value: string) => void;
   onSave?: (value: string) => void;
   onUnsave?: (value: string) => void;
   isSaved?: boolean;
@@ -18,7 +18,7 @@ const ChannelInput = React.forwardRef<HTMLDivElement, ChannelInputProps>(
     {
       className,
       value,
-      onChange,
+      onValueChange,
       onSave,
       onUnsave,
       isSaved = false,
@@ -40,7 +40,7 @@ const ChannelInput = React.forwardRef<HTMLDivElement, ChannelInputProps>(
       const newValue = e.target.value;
       setInputValue(newValue);
       setIsModified(newValue !== value);
-      onChange?.(newValue);
+      onValueChange?.(newValue);
     };
 
     const handleButtonClick = () => {

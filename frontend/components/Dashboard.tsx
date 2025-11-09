@@ -121,7 +121,7 @@ export default function Dashboard() {
               <label className='block text-sm font-medium mb-2'>Канал</label>
               <ChannelInput
                 value={channelUsername}
-                onChange={handleChannelChange}
+                onValueChange={handleChannelChange}
                 onSave={handleChannelSave}
                 onUnsave={handleChannelUnsave}
                 isSaved={isChannelSaved}
