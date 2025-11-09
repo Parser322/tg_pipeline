@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useEffect, useRef } from 'react';
 import { usePosts } from '@/hooks/usePosts';
 import { usePipelineContext } from '@/contexts/PipelineContext';
