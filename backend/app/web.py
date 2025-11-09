@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import asyncio
 import os
+import re
 from pydantic import BaseModel
 
 # Импортируем вашу основную функцию и управление состоянием
@@ -40,6 +41,42 @@ app.add_middleware(
 
 # Глобальная переменная для отслеживания задачи
 current_task: asyncio.Task = None
+
+def _normalize_channel_identifier(value: str | None) -> str | None:
+    """
+    Приводит ввод канала к безопасному виду для Telethon:
+    - t.me/<name> / https://t.me/<name> → <name>
+    - @name → name
+    - иначе возвращает как есть
+    """
+    if not value:
+        return None
+    s = (value or "").strip()
+    if not s:
+        return None
+    m = re.match(r"^(?:https?://)?t\.me/(?:c/)?([^/?#]+)", s, flags=re.IGNORECASE)
+    if m:
+        return m.group(1)
+    if s.startswith("@"):
+        return s.lstrip("@")
+    return s
+
+def _telegram_env_check() -> tuple[bool, str | None]:
+    """
+    Проверяет наличие ключей Telegram и одной из сессий:
+    - TELEGRAM_STRING_SESSION или TELEGRAM_SESSION_B64
+    - либо файл session.session рядом с backend/
+    """
+    api_id = os.getenv("TELEGRAM_API_ID")
+    api_hash = os.getenv("TELEGRAM_API_HASH")
+    if not api_id or not api_hash:
+        return False, "TELEGRAM_API_ID/TELEGRAM_API_HASH не заданы на бэкенде."
+    has_session_env = bool(os.getenv("TELEGRAM_STRING_SESSION") or os.getenv("TELEGRAM_SESSION_B64"))
+    session_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "session.session")
+    has_session_file = os.path.exists(session_file)
+    if not (has_session_env or has_session_file):
+        return False, "Не передана Telegram-сессия (TELEGRAM_STRING_SESSION или TELEGRAM_SESSION_B64), и отсутствует файл session.session."
+    return True, None
 
 @app.get("/health")
 async def health():
@@ -188,8 +225,12 @@ async def trigger_pipeline(request: Request):
     data = await request.json()
     limit = data.get("limit", 100)
     period_hours = data.get("period_hours")
-    channel_url = data.get("channel_url")
+    channel_url = _normalize_channel_identifier(data.get("channel_url"))
     is_top_posts = data.get("is_top_posts", False)
+
+    ok, err = _telegram_env_check()
+    if not ok:
+        return JSONResponse(status_code=400, content={"ok": False, "error": err})
 
     # Сбрасываем состояние перед новым запуском
     reset_state()

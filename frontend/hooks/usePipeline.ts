@@ -71,12 +71,16 @@ export const usePipeline = () => {
   }, []);
 
   useEffect(() => {
-    const intervalMs = status.is_running ? API_CONFIG.POLLING_INTERVAL : API_CONFIG.IDLE_POLLING_INTERVAL;
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+    // Опрашиваем статус ТОЛЬКО когда процесс действительно идёт.
+    if (!status.is_running) {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      return;
     }
-    intervalRef.current = setInterval(fetchStatus, intervalMs);
+    // Активный опрос при запущенном процессе
+    intervalRef.current = setInterval(fetchStatus, API_CONFIG.POLLING_INTERVAL);
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -84,6 +88,35 @@ export const usePipeline = () => {
       }
     };
   }, [status.is_running, fetchStatus]);
+
+  // Обновляем статус при смене видимости вкладки (экономим запросы в фоне)
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // При возврате во вкладку — получить актуальный статус
+        fetchStatus();
+        // Если процесс идёт и интервал не активен — возобновить
+        if (status.is_running && !intervalRef.current) {
+          intervalRef.current = setInterval(fetchStatus, API_CONFIG.POLLING_INTERVAL);
+        }
+      } else {
+        // В фоне — останавливаем опрос
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [status.is_running, fetchStatus]);
+
+  // Разовое обновление при возврате фокуса окна
+  useEffect(() => {
+    const onFocus = () => fetchStatus();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [fetchStatus]);
 
   useEffect(() => {
     if (error || success) {
