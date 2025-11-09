@@ -15,7 +15,7 @@ import { Alert, AlertDescription } from './ui/alert';
 import PostsList from './PostsList';
 
 export default function Dashboard() {
-  const { status, error, success, runPipeline, stopPipeline } = usePipelineContext();
+  const { status, error, success, runPipeline, stopPipeline, isLoading } = usePipelineContext();
   const { postLimit, validationError, setPostLimitValue } = usePostLimit();
   const [periodHours, setPeriodHours] = React.useState<number>(1);
   const [channelUsername, setChannelUsername] = React.useState<string>('');
@@ -23,6 +23,7 @@ export default function Dashboard() {
   const [isTopPosts, setIsTopPosts] = React.useState<boolean>(false);
   const [channelError, setChannelError] = React.useState<string | null>(null);
   const [channelMessage, setChannelMessage] = React.useState<string | null>(null);
+  const channelCheckRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   React.useEffect(() => {
     getCurrentChannel()
@@ -95,18 +96,39 @@ export default function Dashboard() {
     } else {
       localStorage.removeItem('lastUsedChannel');
     }
+    // мгновенно сбрасываем флаг при пустом инпуте
     if (!username.trim()) {
       setIsChannelSaved(false);
+      if (channelCheckRef.current) {
+        clearTimeout(channelCheckRef.current);
+        channelCheckRef.current = null;
+      }
       return;
     }
-    try {
-      const response = await checkChannel(username);
-      setIsChannelSaved(response.data.is_saved);
-    } catch (err) {
-      console.error('Failed to check channel:', err);
-      setIsChannelSaved(false);
+    // debounce проверки канала
+    if (channelCheckRef.current) {
+      clearTimeout(channelCheckRef.current);
+      channelCheckRef.current = null;
     }
+    channelCheckRef.current = setTimeout(async () => {
+      try {
+        const response = await checkChannel(username);
+        setIsChannelSaved(response.data.is_saved);
+      } catch (err) {
+        console.error('Failed to check channel:', err);
+        setIsChannelSaved(false);
+      }
+    }, 400);
   };
+
+  React.useEffect(() => {
+    return () => {
+      if (channelCheckRef.current) {
+        clearTimeout(channelCheckRef.current);
+        channelCheckRef.current = null;
+      }
+    };
+  }, []);
 
   return (
     <div className='min-h-screen bg-background'>
@@ -125,7 +147,7 @@ export default function Dashboard() {
                 onSave={handleChannelSave}
                 onUnsave={handleChannelUnsave}
                 isSaved={isChannelSaved}
-                disabled={status.is_running}
+                disabled={status.is_running || isLoading}
                 placeholder='канал'
               />
             </div>
@@ -140,7 +162,7 @@ export default function Dashboard() {
                   onValueChange={(value) => setPostLimitValue(value)}
                   min={1}
                   max={1000}
-                  disabled={status.is_running}
+                  disabled={status.is_running || isLoading}
                 />
 
                 <div className='relative'>
@@ -152,7 +174,7 @@ export default function Dashboard() {
                       onValueChange={setPeriodHours}
                       min={1}
                       max={168}
-                      disabled={status.is_running}
+                      disabled={status.is_running || isLoading}
                     />
                   </div>
                 </div>
@@ -170,7 +192,7 @@ export default function Dashboard() {
                     <Switch
                       checked={isTopPosts}
                       onCheckedChange={setIsTopPosts}
-                      disabled={status.is_running}
+                      disabled={status.is_running || isLoading}
                       className='mt-0.5'
                     />
                   </div>
@@ -185,7 +207,8 @@ export default function Dashboard() {
                       onRun={handleRun}
                       onStop={stopPipeline}
                       isRunning={status.is_running}
-                      disabled={!!validationError}
+                      disabled={!!validationError || isLoading}
+                      loading={isLoading}
                     />
 
                     <StatusIndicator

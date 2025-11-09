@@ -31,7 +31,7 @@ const StatusIndicator = ({ isRunning, finished, processed, total }: StatusIndica
   };
 
   return (
-    <div className='flex items-center gap-2 text-sm'>
+    <div className='flex items-center gap-2 text-sm' role='status' aria-live='polite'>
       {getStatusIcon()}
       <span className='font-medium'>{getStatusText()}</span>
     </div>

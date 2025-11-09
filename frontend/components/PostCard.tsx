@@ -1,4 +1,5 @@
 import React from 'react';
+import Image from 'next/image';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -48,11 +49,14 @@ const PostCard = ({ post, onTranslate, onDelete }: PostCardProps) => {
               // image или gif
               return (
                 <div key={m.id} className='rounded-md overflow-hidden border'>
-                  <img
+                  <Image
                     src={m.url}
                     alt=''
+                    width={m.width || 800}
+                    height={m.height || 600}
                     className='w-full h-auto max-h-[360px] object-contain bg-muted'
                     loading='lazy'
+                    sizes='(max-width: 640px) 100vw, 50vw'
                   />
                 </div>
               );

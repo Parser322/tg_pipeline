@@ -1,14 +1,24 @@
 import React from 'react';
 import { Button } from './ui/button';
+import { Loader2 } from 'lucide-react';
 
 type ControlButtonsProps = {
   onRun: () => void;
   onStop: () => void;
   isRunning: boolean;
   disabled?: boolean;
+  loading?: boolean;
 };
 
-const ControlButtons = ({ onRun, onStop, isRunning, disabled }: ControlButtonsProps) => {
+const ControlButtons = ({ onRun, onStop, isRunning, disabled, loading }: ControlButtonsProps) => {
+  if (loading) {
+    return (
+      <Button disabled size='sm' variant={isRunning ? 'outline' : 'default'} className='gap-2'>
+        <Loader2 className='h-4 w-4 animate-spin' />
+        {isRunning ? 'Остановка...' : 'Запуск...'}
+      </Button>
+    );
+  }
   if (isRunning) {
     return (
       <Button onClick={onStop} variant='outline' size='sm' className='border-input' aria-label='Остановить парсер' title='Остановить'>
