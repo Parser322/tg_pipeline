@@ -15,8 +15,6 @@ from app.supabase_manager import save_post, upload_media_files, save_post_media
 
 # === 0. Ключи и конфиг ===
 load_dotenv()
-TELEGRAM_API_ID = int(os.getenv("TELEGRAM_API_ID"))
-TELEGRAM_API_HASH = os.getenv("TELEGRAM_API_HASH")
 
 # Путь к config.yaml относительно app/
 config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.yaml")
@@ -51,6 +49,19 @@ def _ensure_telethon_session(session_base_path: str) -> None:
         print("Telethon session restored from TELEGRAM_SESSION_B64.")
     except Exception as e:
         print("Failed to restore Telethon session from env:", e)
+def _get_telegram_credentials() -> tuple[int, str]:
+    """
+    Читает TELEGRAM_API_ID/TELEGRAM_API_HASH из окружения.
+    Бросает понятную ошибку, если переменные не заданы.
+    """
+    api_id_str = os.getenv("TELEGRAM_API_ID")
+    api_hash = os.getenv("TELEGRAM_API_HASH")
+    if not api_id_str or not api_hash:
+        raise RuntimeError(
+            "Не заданы переменные окружения TELEGRAM_API_ID и/или TELEGRAM_API_HASH. "
+            "Добавьте их в Railway → Variables и перезапустите."
+        )
+    return int(api_id_str), api_hash
 def ffmpeg_exists() -> bool:
     return shutil.which("ffmpeg") is not None
 
@@ -326,16 +337,17 @@ async def process_channel(client: TelegramClient, ch: str, limit: int):
 
 async def main(limit: int = 100, period_hours: int | None = None, channel_url: str | None = None, is_top_posts: bool = False):
     """Основная функция, теперь принимает лимит постов, канал и режим парсинга."""
+    api_id, api_hash = _get_telegram_credentials()
     # Поддержка строковой сессии (предпочтительно для прод/CI)
     session_string = os.getenv("TELEGRAM_STRING_SESSION")
     if session_string:
-        client = TelegramClient(StringSession(session_string), TELEGRAM_API_ID, TELEGRAM_API_HASH)
+        client = TelegramClient(StringSession(session_string), api_id, api_hash)
     else:
         # Путь к session файлу в backend/
         session_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "session")
         # Восстанавливаем сессию из env при необходимости
         _ensure_telethon_session(session_path)
-        client = TelegramClient(session_path, TELEGRAM_API_ID, TELEGRAM_API_HASH)
+        client = TelegramClient(session_path, api_id, api_hash)
     try:
         await client.start()
         me = await client.get_me()
