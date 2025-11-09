@@ -21,10 +21,6 @@ const PostsList = () => {
   const prevFinishedRef = useRef<boolean>(false);
 
   useEffect(() => {
-    fetchPosts();
-  }, [fetchPosts]);
-
-  useEffect(() => {
     if (status.finished && !prevFinishedRef.current) {
       fetchPosts();
     }
