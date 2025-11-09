@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import type { Post, MediaItem } from '@/types/api';
-import { Eye, Star, Languages, Trash2, MessageSquare, Sparkles } from 'lucide-react';
+import { Eye, Star, Languages, Trash2, MessageSquare, Sparkles, Smile, ChevronDown } from 'lucide-react';
 
 type PostCardProps = {
   post: Post;
@@ -12,70 +12,28 @@ type PostCardProps = {
   onDelete: (postId: string) => void;
 };
 
+function isVideoMedia(m: MediaItem): boolean {
+  if (m.media_type === 'video') return true;
+  if ((m.mime_type || '').toLowerCase().startsWith('video/')) return true;
+  const url = (m.url || '').toLowerCase();
+  return url.endsWith('.mp4') || url.endsWith('.mov') || url.endsWith('.mkv') || url.endsWith('.webm') || url.endsWith('.m4v');
+}
+
 const PostCard = ({ post, onTranslate, onDelete }: PostCardProps) => {
+  const [activeTab, setActiveTab] = useState<'original' | 'translated'>('original');
   return (
     <Card className='hover:shadow-md transition-shadow rounded-lg'>
       <CardContent className='p-4 space-y-3'>
-        <div className='flex items-start justify-between gap-3'>
+        <div className='flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3'>
           <div className='flex-1 min-w-0'>
             <p className='text-sm font-semibold truncate'>{post.source_channel}</p>
             <p className='text-xs text-muted-foreground mt-0.5'>ID: {post.original_message_id}</p>
           </div>
-          <div className='flex gap-2 items-center shrink-0'>
-            <Badge
-              variant='secondary'
-              className='text-xs px-2 py-1 rounded-md font-medium flex items-center gap-1'
-            >
-              <Eye className='h-3.5 w-3.5' />
-              {post.original_views || 0}
-            </Badge>
-            {/* Разбивка по эмодзи как в Telegram */}
-            {post.original_reactions && Object.keys(post.original_reactions).length > 0 ? (
-              <div className='flex gap-1 items-center'>
-                {Object.entries(post.original_reactions)
-                  .sort((a, b) => (b[1] || 0) - (a[1] || 0))
-                  .slice(0, 6)
-                  .map(([emoji, count]) => {
-                    const isCustom = emoji.startsWith('custom:') || emoji === 'unknown';
-                    return (
-                      <Badge
-                        key={emoji}
-                        variant='secondary'
-                        className='text-xs px-2 py-1 rounded-md font-medium flex items-center gap-1'
-                      >
-                        {isCustom ? (
-                          <Sparkles className='h-3.5 w-3.5' />
-                        ) : (
-                          <span className='text-base leading-none'>{emoji}</span>
-                        )}
-                        {count || 0}
-                      </Badge>
-                    );
-                  })}
-              </div>
-            ) : (
-              // Фолбэк: показываем суммарные реакции, если нет разбивки
-              post.original_likes !== undefined && (
-                <Badge
-                  variant='secondary'
-                  className='text-xs px-2 py-1 rounded-md font-medium flex items-center gap-1'
-                >
-                  <span className='text-base leading-none'>❤️</span>
-                  {post.original_likes || 0}
-                </Badge>
-              )
-            )}
-            <Badge
-              variant='secondary'
-              className='text-xs px-2 py-1 rounded-md font-medium flex items-center gap-1'
-            >
-              <MessageSquare className='h-3.5 w-3.5' />
-              {post.original_comments || 0}
-            </Badge>
+          <div className='mt-1 sm:mt-0 flex items-center gap-1 sm:gap-2 shrink-0'>
             {post.is_top_post && (
               <Badge
                 variant='secondary'
-                className='text-xs px-2 py-1 rounded-md font-medium flex items-center gap-1'
+                className='text-xs px-2 py-1 rounded-md font-medium flex items-center gap-1 whitespace-nowrap'
               >
                 <Star className='h-3.5 w-3.5 text-yellow-500' />
               </Badge>
@@ -83,16 +41,16 @@ const PostCard = ({ post, onTranslate, onDelete }: PostCardProps) => {
           </div>
         </div>
         {post.media && post.media.length > 0 && (
-          <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
+          <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
             {post.media.map((m: MediaItem) => {
-              if (m.media_type === 'video') {
+              if (isVideoMedia(m)) {
                 return (
                   <div key={m.id} className='rounded-md overflow-hidden border bg-black'>
                     <video
                       src={m.url}
                       controls
                       preload='metadata'
-                      className='w-full h-auto max-h-[360px]'
+                      className='w-full h-auto max-h-[600px] md:max-h-[720px]'
                     />
                   </div>
                 );
@@ -105,8 +63,9 @@ const PostCard = ({ post, onTranslate, onDelete }: PostCardProps) => {
                     alt=''
                     width={m.width || 800}
                     height={m.height || 600}
-                    className='w-full h-auto max-h-[360px] object-contain bg-muted'
+                    className='w-full h-auto max-h-[600px] md:max-h-[720px] object-contain bg-muted'
                     loading='lazy'
+                    unoptimized={((m.mime_type || '').toLowerCase() === 'image/gif') || m.url.toLowerCase().endsWith('.gif')}
                     sizes='(max-width: 640px) 100vw, 50vw'
                   />
                 </div>
@@ -115,19 +74,61 @@ const PostCard = ({ post, onTranslate, onDelete }: PostCardProps) => {
           </div>
         )}
         <div className='space-y-2'>
-          <p className='text-sm font-medium'>Оригинал</p>
-          <p className='text-sm text-muted-foreground whitespace-pre-wrap bg-muted p-3 rounded-md line-clamp-3'>
-            {post.content || 'Нет текста'}
-          </p>
-        </div>
-        {post.translated_content && (
-          <div className='space-y-2'>
-            <p className='text-sm font-medium'>Перевод</p>
-            <p className='text-sm text-muted-foreground whitespace-pre-wrap bg-muted p-3 rounded-md line-clamp-3'>
-              {post.translated_content}
-            </p>
+          <div role='tablist' aria-label='Текст поста' className='flex items-center gap-1 pb-1'>
+            <button
+              role='tab'
+              aria-selected={activeTab === 'original'}
+              onClick={() => setActiveTab('original')}
+              className={`text-xs px-2 py-1 rounded-md border transition-colors ${
+                activeTab === 'original'
+                  ? 'bg-secondary text-secondary-foreground border-transparent'
+                  : 'bg-background text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              Оригинал
+            </button>
+            <button
+              role='tab'
+              aria-selected={activeTab === 'translated'}
+              onClick={() => post.translated_content && setActiveTab('translated')}
+              disabled={!post.translated_content}
+              className={`text-xs px-2 py-1 rounded-md border transition-colors ${
+                activeTab === 'translated'
+                  ? 'bg-secondary text-secondary-foreground border-transparent'
+                  : 'bg-background text-muted-foreground hover:bg-muted'
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
+            >
+              Перевод
+            </button>
           </div>
-        )}
+          <div className='text-sm text-muted-foreground whitespace-pre-wrap bg-muted p-3 rounded-md h-40 overflow-y-auto pr-1'>
+            {activeTab === 'original'
+              ? (post.content || 'Нет текста')
+              : (post.translated_content || 'Нет перевода')}
+          </div>
+        </div>
+        {/* Метрики: просмотры, реакции (сводная), комментарии — внизу перед кнопками */}
+        <div className='flex flex-wrap items-center gap-1 sm:gap-2'>
+          <Badge
+            variant='secondary'
+            className='text-xs px-2 py-1 rounded-md font-medium flex items-center gap-1 whitespace-nowrap'
+          >
+            <Eye className='h-3.5 w-3.5' />
+            {post.original_views || 0}
+          </Badge>
+          {/* Сводный бейдж реакций + тултип со всеми эмодзи */}
+          <ReactionsSummary
+            reactions={post.original_reactions}
+            fallbackLikes={post.original_likes || 0}
+          />
+          <Badge
+            variant='secondary'
+            className='text-xs px-2 py-1 rounded-md font-medium flex items-center gap-1 whitespace-nowrap'
+          >
+            <MessageSquare className='h-3.5 w-3.5' />
+            {post.original_comments || 0}
+          </Badge>
+        </div>
         <div className='flex gap-2'>
           {!post.translated_content && post.content && (
             <Button
@@ -161,5 +162,100 @@ const PostCard = ({ post, onTranslate, onDelete }: PostCardProps) => {
     </Card>
   );
 };
+
+type ReactionsSummaryProps = {
+  reactions?: Record<string, number> | null;
+  fallbackLikes: number;
+};
+
+function ReactionsSummary({ reactions, fallbackLikes }: ReactionsSummaryProps) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+
+  const hasBreakdown = !!reactions && Object.keys(reactions).length > 0;
+  const total = hasBreakdown
+    ? Object.values(reactions as Record<string, number>).reduce((acc, n) => acc + (n || 0), 0)
+    : fallbackLikes || 0;
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e: MouseEvent) => {
+      const t = e.target as Node | null;
+      if (panelRef.current && panelRef.current.contains(t)) return;
+      if (triggerRef.current && triggerRef.current.contains(t)) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className='relative inline-block'>
+      <div
+        ref={triggerRef}
+        role={hasBreakdown ? 'button' : undefined}
+        tabIndex={hasBreakdown ? 0 : -1}
+        onClick={() => hasBreakdown && setOpen((v) => !v)}
+        onKeyDown={(e) => {
+          if (!hasBreakdown) return;
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setOpen((v) => !v);
+          }
+        }}
+        className={`text-xs px-2 py-1 rounded-md font-medium inline-flex items-center gap-1 whitespace-nowrap border bg-secondary text-secondary-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-${
+          hasBreakdown ? 'pointer' : 'default'
+        } select-none ${hasBreakdown ? 'hover:bg-secondary/80 hover:shadow-sm' : ''}`}
+        aria-expanded={open}
+        aria-label='Показать реакции'
+        title={hasBreakdown ? 'Показать все реакции' : undefined}
+      >
+        <Smile className='h-3.5 w-3.5' />
+        {total}
+        {hasBreakdown && (
+          <ChevronDown className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`} />
+        )}
+      </div>
+      {open && hasBreakdown && (
+        <div
+          ref={panelRef}
+          className='absolute z-50 bottom-full left-0 mb-2 w-60 max-h-72 overflow-auto rounded-md border bg-background p-2 shadow-md'
+        >
+          <p className='text-xs text-muted-foreground px-1 pb-1'>Реакции</p>
+          <div className='grid grid-cols-2 sm:grid-cols-3 gap-1'>
+            {Object.entries(reactions as Record<string, number>)
+              .sort((a, b) => (b[1] || 0) - (a[1] || 0))
+              .map(([emoji, count]) => {
+                const isCustom =
+                  emoji.startsWith('custom:') || emoji === 'unknown' || /[a-z]/i.test(emoji); // текстовые метки от API
+                return (
+                  <Badge
+                    key={emoji}
+                    variant='secondary'
+                    className='text-xs px-2 py-1 rounded-md font-medium flex items-center gap-1 whitespace-nowrap'
+                  >
+                    {isCustom ? (
+                      <Sparkles className='h-3.5 w-3.5' />
+                    ) : (
+                      <span className='text-base leading-none'>{emoji}</span>
+                    )}
+                    {count || 0}
+                  </Badge>
+                );
+              })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default PostCard;

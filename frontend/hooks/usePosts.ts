@@ -83,6 +83,8 @@ export const usePosts = () => {
     await deleteAllMutation.mutateAsync();
   }, [deleteAllMutation]);
 
+ 
+
   return {
     posts: (postsQuery.data as Post[] | undefined) ?? [],
     isLoading: postsQuery.isLoading,

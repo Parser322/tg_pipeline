@@ -313,6 +313,8 @@ def save_post_media(post_id: str, media_items: List[Dict[str, Any]]) -> int:
         return 0
 
 
+ 
+
 def get_all_posts() -> List[Dict[str, Any]]:
     try:
         response = _client().table(POSTS_TABLE).select("*").order("original_date", desc=True).execute()

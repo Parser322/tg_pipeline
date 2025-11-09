@@ -9,7 +9,7 @@ from telethon.errors import (
 from telethon.sessions import StringSession
 from PIL import Image
 from app.state_manager import increment_processed, set_total, get_last_id, set_last_id
-from app.supabase_manager import save_post, upload_media_files, save_post_media
+from app.supabase_manager import save_post, upload_media_files, save_post_media, update_post
 # Убираем импорт, так как перевод здесь больше не нужен
 # from app.translation import translate_text
 
@@ -403,6 +403,14 @@ async def process_top_posts(client: TelegramClient, ch: str, period_days: float,
             media_items = upload_media_files(media_paths, ch, root_id)
             if media_items:
                 save_post_media(post_id, media_items)
+            # Обновляем фактические флаги/счетчики медиа у поста
+            try:
+                update_post(post_id, {
+                    "has_media": bool(media_items),
+                    "media_count": len(media_items or []),
+                })
+            except Exception:
+                pass
 
         # --- ОТПРАВКА В TELEGRAM ОТКЛЮЧЕНА ---
         print(f"Post album_key={album_key} saved to Supabase. Skipping Telegram send.")
@@ -488,6 +496,14 @@ async def process_channel(client: TelegramClient, ch: str, limit: int):
             media_items = upload_media_files(media_paths, ch, root_id)
             if media_items:
                 save_post_media(post_id, media_items)
+            # Обновляем фактические флаги/счетчики медиа у поста
+            try:
+                update_post(post_id, {
+                    "has_media": bool(media_items),
+                    "media_count": len(media_items or []),
+                })
+            except Exception:
+                pass
 
         # --- ОТПРАВКА В TELEGRAM ОТКЛЮЧЕНА ---
         # Теперь только чистим кэш после сохранения

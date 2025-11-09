@@ -24,6 +24,7 @@ from app.supabase_manager import (
     delete_saved_channel,
 )
 from app.translation import translate_text
+ 
 
 # Инициализацию Supabase выполняем лениво при первом обращении через _client().
 # Это ускоряет старт и избегает падения, если переменные окружения временно не заданы.
@@ -401,6 +402,7 @@ async def delete_current_channel_endpoint():
     except Exception as e:
         print(f"Delete current channel endpoint error: {e}")
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+
 
 
 # Диагностический эндпоинт: простая отправка текста в канал
