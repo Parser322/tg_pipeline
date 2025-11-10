@@ -9,7 +9,7 @@ from telethon.errors import (
 from telethon.sessions import StringSession
 from PIL import Image
 from app.state_manager import increment_processed, set_total, get_last_id, set_last_id
-from app.supabase_manager import save_post, upload_media_files, save_post_media, update_post
+from app.supabase_manager import save_post, upload_media_files, save_post_media, update_post, initialize_supabase
 # Убираем импорт, так как перевод здесь больше не нужен
 # from app.translation import translate_text
 
@@ -416,28 +416,33 @@ async def process_top_posts(client: TelegramClient, ch: str, period_days: float,
             "original_reactions": grouped_reactions,
         }
         post_id = save_post(post_to_save)
-        if post_id and media_paths:
-            media_items = upload_media_files(media_paths, ch, root_id)
-            if media_items:
-                save_post_media(post_id, media_items)
-            # Обновляем фактические флаги/счетчики медиа у поста
-            try:
-                update_post(post_id, {
-                    "has_media": bool(media_items),
-                    "media_count": len(media_items or []),
-                })
-            except Exception:
-                pass
+        if post_id:
+            # Пост успешно сохранен
+            if media_paths:
+                media_items = upload_media_files(media_paths, ch, root_id)
+                if media_items:
+                    save_post_media(post_id, media_items)
+                # Обновляем фактические флаги/счетчики медиа у поста
+                try:
+                    update_post(post_id, {
+                        "has_media": bool(media_items),
+                        "media_count": len(media_items or []),
+                    })
+                except Exception:
+                    pass
 
-        # --- ОТПРАВКА В TELEGRAM ОТКЛЮЧЕНА ---
-        print(f"Post album_key={album_key} saved to Supabase. Skipping Telegram send.")
+            # --- ОТПРАВКА В TELEGRAM ОТКЛЮЧЕНА ---
+            print(f"Post album_key={album_key} saved to Supabase (post_id={post_id}). Skipping Telegram send.")
+            
+            # Увеличиваем счетчик только после успешного сохранения
+            increment_processed()
+        else:
+            print(f"ERROR: Failed to save post album_key={album_key} to Supabase")
 
-        # Чистим кэш после сохранения
+        # Чистим кэш после обработки
         for p in media_paths:
             try: pathlib.Path(p).unlink(missing_ok=True)
             except Exception as e: print("Cleanup error:", e)
-
-        increment_processed()
 
 # === 2. Основная логика ===
 async def process_channel(client: TelegramClient, ch: str, limit: int):
@@ -512,32 +517,45 @@ async def process_channel(client: TelegramClient, ch: str, limit: int):
         
         # --- Сохраняем пост и медиа ---
         post_id = save_post(post_to_save)
-        if post_id and media_paths:
-            media_items = upload_media_files(media_paths, ch, root_id)
-            if media_items:
-                save_post_media(post_id, media_items)
-            # Обновляем фактические флаги/счетчики медиа у поста
-            try:
-                update_post(post_id, {
-                    "has_media": bool(media_items),
-                    "media_count": len(media_items or []),
-                })
-            except Exception:
-                pass
+        if post_id:
+            # Пост успешно сохранен
+            if media_paths:
+                media_items = upload_media_files(media_paths, ch, root_id)
+                if media_items:
+                    save_post_media(post_id, media_items)
+                # Обновляем фактические флаги/счетчики медиа у поста
+                try:
+                    update_post(post_id, {
+                        "has_media": bool(media_items),
+                        "media_count": len(media_items or []),
+                    })
+                except Exception:
+                    pass
 
-        # --- ОТПРАВКА В TELEGRAM ОТКЛЮЧЕНА ---
-        # Теперь только чистим кэш после сохранения
+            # --- ОТПРАВКА В TELEGRAM ОТКЛЮЧЕНА ---
+            print(f"Post (original_id={root_id}) saved to Supabase (post_id={post_id}).")
+            
+            # Увеличиваем счетчик только после успешного сохранения
+            increment_processed()
+        else:
+            print(f"ERROR: Failed to save post (original_id={root_id}) to Supabase")
+
+        # Чистим кэш после обработки
         for p in media_paths:
             try: pathlib.Path(p).unlink(missing_ok=True)
             except Exception as e: print("Cleanup error:", e)
 
-        # Обновление last_id больше не требуется
-        # current_last_id = get_last_id(ch)
-        # set_last_id(ch, max(current_last_id, m.id))
-        increment_processed() # Увеличиваем счетчик после успешной обработки
-
 async def main(limit: int = 100, period_hours: int | None = None, channel_url: str | None = None, is_top_posts: bool = False):
     """Основная функция, теперь принимает лимит постов, канал и режим парсинга."""
+    # Инициализируем Supabase перед началом работы
+    try:
+        initialize_supabase()
+        print("Supabase connection initialized successfully.")
+    except Exception as e:
+        print(f"CRITICAL ERROR: Failed to initialize Supabase: {e}")
+        print("Please check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.")
+        raise
+    
     api_id, api_hash = _get_telegram_credentials()
     # Поддержка строковой сессии (предпочтительно для прод/CI) + безопасный фолбэк
     session_string = os.getenv("TELEGRAM_STRING_SESSION")

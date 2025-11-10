@@ -99,3 +99,8 @@ jspm_packages/
 
 # Firebase
 firebase-credentials.json
+
+# Supabase
+supabase/.temp/
+supabase/.branches/
+supabase/config.toml
