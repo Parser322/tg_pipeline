@@ -18,7 +18,6 @@ export const useProgressToast = (status: ProgressStatus) => {
     const currentIsRunning = status.is_running;
     const hasProgress = status.total > 0;
 
-    // Начало: создаем тост прогресса
     if (currentIsRunning && !prevIsRunning && hasProgress) {
       const id = 'pipeline-progress';
       progressToastIdRef.current = id;
@@ -30,7 +29,6 @@ export const useProgressToast = (status: ProgressStatus) => {
       });
     }
 
-    // Обновление прогресса
     if (currentIsRunning && hasProgress && progressToastIdRef.current) {
       if (updateProgressTimeoutRef.current) {
         clearTimeout(updateProgressTimeoutRef.current);
@@ -50,7 +48,6 @@ export const useProgressToast = (status: ProgressStatus) => {
       }, 300);
     }
 
-    // Отображаем тост если его еще нет, но должен быть
     if (currentIsRunning && hasProgress && !progressToastIdRef.current) {
       const id = 'pipeline-progress';
       progressToastIdRef.current = id;
@@ -63,7 +60,6 @@ export const useProgressToast = (status: ProgressStatus) => {
       });
     }
 
-    // Завершение: удаляем тост прогресса
     if (!currentIsRunning && prevIsRunning && progressToastIdRef.current) {
       if (updateProgressTimeoutRef.current) {
         clearTimeout(updateProgressTimeoutRef.current);

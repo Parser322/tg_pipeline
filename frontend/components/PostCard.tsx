@@ -119,7 +119,6 @@ export default function PostCard({ post, onTranslate, onDelete }: PostCardProps)
               : (post.translated_content || 'Нет перевода')}
           </div>
         </div>
-        {/* Метрики: просмотры, реакции (сводная), комментарии — внизу перед кнопками */}
         <div className='flex flex-wrap items-center gap-1 sm:gap-2'>
           <Badge
             variant='secondary'
@@ -128,7 +127,6 @@ export default function PostCard({ post, onTranslate, onDelete }: PostCardProps)
             <Eye className='h-3.5 w-3.5' />
             {post.original_views || 0}
           </Badge>
-          {/* Сводный бейдж реакций + тултип со всеми эмодзи */}
           <ReactionsSummary
             reactions={post.original_reactions}
             fallbackLikes={post.original_likes || 0}
@@ -242,7 +240,7 @@ function ReactionsSummary({ reactions, fallbackLikes }: ReactionsSummaryProps) {
               .sort((a, b) => (b[1] || 0) - (a[1] || 0))
               .map(([emoji, count]) => {
                 const isCustom =
-                  emoji.startsWith('custom:') || emoji === 'unknown' || /[a-z]/i.test(emoji); // текстовые метки от API
+                  emoji.startsWith('custom:') || emoji === 'unknown' || /[a-z]/i.test(emoji);
                 return (
                   <Badge
                     key={emoji}

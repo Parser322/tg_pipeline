@@ -1,5 +1,4 @@
 'use client';
-import { PipelineProvider } from '@/contexts/PipelineContext';
 import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
@@ -15,6 +14,10 @@ export default function Providers({ children }: { children: ReactNode }) {
             retry: 1,
             refetchOnWindowFocus: true,
             staleTime: 30_000,
+            gcTime: 5 * 60 * 1000,
+          },
+          mutations: {
+            retry: 1,
           },
         },
       })
@@ -24,7 +27,7 @@ export default function Providers({ children }: { children: ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <PipelineProvider>{children}</PipelineProvider>
+      {children}
       <Toaster
         position='bottom-right'
         duration={5000}

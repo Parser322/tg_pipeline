@@ -1,20 +1,18 @@
 'use client';
-import { useEffect, useMemo, useCallback } from 'react';
-import { usePipelineContext } from '@/contexts/PipelineContext';
+import { useEffect, useMemo, useCallback, useState } from 'react';
+import { usePipeline } from '@/hooks/usePipeline';
 import { usePostLimit } from '@/hooks/usePostLimit';
 import { useChannel } from '@/hooks/useChannel';
 import { useProgressToast } from '@/hooks/useProgressToast';
-import StatusIndicator from './StatusIndicator';
 import { ControlButtons } from './ControlButtons';
 import { Card, CardContent } from './ui/card';
 import { NumberInput } from './ui/number-input';
 import { Switch } from './ui/switch';
 import { ChannelInput } from './ui/channel-input';
 import { toast } from 'sonner';
-import { useState } from 'react';
 
 export default function Dashboard() {
-  const { status, error, success, runPipeline, stopPipeline, isLoading } = usePipelineContext();
+  const { status, error, success, runPipeline, stopPipeline, isLoading } = usePipeline();
   const { postLimit, validationError, setPostLimitValue } = usePostLimit();
   const [periodHours, setPeriodHours] = useState<number>(1);
   const [isTopPosts, setIsTopPosts] = useState<boolean>(false);
@@ -29,10 +27,8 @@ export default function Dashboard() {
     handleChannelChange,
   } = useChannel();
 
-  // Используем хук для управления тостом прогресса
   useProgressToast(status);
 
-  // Уведомления об ошибках и успехе
   useEffect(() => {
     if (error) {
       toast.error('Ошибка', { description: error });
@@ -45,7 +41,6 @@ export default function Dashboard() {
     }
   }, [success]);
 
-  // Уведомления для канала
   useEffect(() => {
     if (channelError) {
       toast.error('Ошибка канала', { description: channelError });
@@ -131,21 +126,13 @@ export default function Dashboard() {
 
               <div className='relative md:pl-8'>
                 <div className='hidden md:block absolute left-0 top-0 bottom-0 w-px bg-border'></div>
-                <div className='flex items-center gap-3'>
-                  <ControlButtons
-                    onRun={handleRun}
-                    onStop={stopPipeline}
-                    isRunning={status.is_running}
-                    disabled={isRunButtonDisabled}
-                    loading={isLoading}
-                  />
-                  <StatusIndicator
-                    isRunning={status.is_running}
-                    finished={status.finished}
-                    processed={status.processed}
-                    total={status.total}
-                  />
-                </div>
+                <ControlButtons
+                  onRun={handleRun}
+                  onStop={stopPipeline}
+                  isRunning={status.is_running}
+                  disabled={isRunButtonDisabled}
+                  loading={isLoading}
+                />
               </div>
             </div>
 

@@ -59,7 +59,7 @@ export class FetchClient {
           const errorData = await response.json();
           errorMessage = errorData.message || errorData.error || errorMessage;
         } catch {
-          // Если не JSON, используем statusText
+          // Ignore
         }
 
         throw new ApiError(errorMessage, response.status, response.statusText);

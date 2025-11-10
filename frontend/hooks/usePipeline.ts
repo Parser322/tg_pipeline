@@ -2,8 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { pipelineAPI } from '@/services/api';
 import { API_CONFIG, MESSAGES } from '@/constants';
-import type { PipelineStatus } from '@/types/api';
+import type { PipelineStatus, OkResponse } from '@/types/api';
 import { queryKeys } from '@/lib/queryKeys';
+import { getErrorMessage } from '@/lib/errorUtils';
 
 type RunPipelineArgs = {
   postLimit: number;
@@ -12,18 +13,12 @@ type RunPipelineArgs = {
   isTopPosts: boolean;
 };
 
-const getErrorMessage = (error: unknown): string => {
-  if (error instanceof Error) return error.message;
-  if (typeof error === 'string') return error;
-  return 'Неизвестная ошибка';
-};
-
 export const usePipeline = () => {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const statusQuery = useQuery({
+  const statusQuery = useQuery<PipelineStatus, Error>({
     queryKey: queryKeys.status,
     queryFn: ({ signal }) => pipelineAPI.status(signal),
     initialData: {
@@ -39,27 +34,27 @@ export const usePipeline = () => {
     staleTime: 2_000,
   });
 
-  const runMutation = useMutation({
-    mutationFn: (args: RunPipelineArgs) =>
+  const runMutation = useMutation<OkResponse, Error, RunPipelineArgs>({
+    mutationFn: (args) =>
       pipelineAPI.run(args.postLimit, args.periodHours, args.channelUrl, args.isTopPosts),
     onSuccess: (data) => {
       setSuccess(data.message || MESSAGES.SUCCESS.PIPELINE_STARTED);
       setError(null);
       void queryClient.invalidateQueries({ queryKey: queryKeys.status });
     },
-    onError: (err: unknown) => {
+    onError: (err) => {
       setError(getErrorMessage(err) || MESSAGES.ERROR.PIPELINE_START);
     },
   });
 
-  const stopMutation = useMutation({
+  const stopMutation = useMutation<OkResponse, Error, void>({
     mutationFn: () => pipelineAPI.stop(),
     onSuccess: (data) => {
       setSuccess(data.message || MESSAGES.SUCCESS.PIPELINE_STOPPED);
       setError(null);
       void queryClient.invalidateQueries({ queryKey: queryKeys.status });
     },
-    onError: (err: unknown) => {
+    onError: (err) => {
       setError(getErrorMessage(err) || MESSAGES.ERROR.PIPELINE_STOP);
     },
   });

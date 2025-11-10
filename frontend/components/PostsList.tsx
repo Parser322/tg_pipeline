@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useCallback } from 'react';
 import { usePosts } from '@/hooks/usePosts';
-import { usePipelineContext } from '@/contexts/PipelineContext';
+import { usePipeline } from '@/hooks/usePipeline';
 import PostCard from './PostCard';
 import { Button } from './ui/button';
 import { Trash2 } from 'lucide-react';
@@ -12,14 +12,14 @@ export default function PostsList() {
   const {
     posts,
     isLoading,
-    error,
-    message,
+    errorMessage,
+    successMessage,
     fetchPosts,
     handleTranslatePost,
     handleDeletePost,
     handleDeleteAllPosts,
   } = usePosts();
-  const { status } = usePipelineContext();
+  const { status } = usePipeline();
   const prevFinishedRef = useRef<boolean>(false);
 
   useEffect(() => {
@@ -30,16 +30,16 @@ export default function PostsList() {
   }, [status.finished, fetchPosts]);
 
   useEffect(() => {
-    if (error) {
-      toast.error('Ошибка', { description: error, duration: 4000 });
+    if (errorMessage) {
+      toast.error('Ошибка', { description: errorMessage, duration: 4000 });
     }
-  }, [error]);
+  }, [errorMessage]);
 
   useEffect(() => {
-    if (message) {
-      toast.success(message, { duration: 2500 });
+    if (successMessage) {
+      toast.success(successMessage, { duration: 2500 });
     }
-  }, [message]);
+  }, [successMessage]);
 
   const handleDeleteAllClick = useCallback(() => {
     if (posts.length === 0) return;

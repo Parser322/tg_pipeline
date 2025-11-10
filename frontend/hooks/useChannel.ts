@@ -2,12 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { saveChannel, checkChannel, deleteCurrentChannel, getCurrentChannel } from '@/services/api';
 import { queryKeys } from '@/lib/queryKeys';
-
-const getErrorMessage = (error: unknown): string => {
-  if (error instanceof Error) return error.message;
-  if (typeof error === 'string') return error;
-  return 'Неизвестная ошибка';
-};
+import { getErrorMessage } from '@/lib/errorUtils';
+import type { CurrentChannelResponse, OkResponse, CheckChannelResponse } from '@/types/api';
 
 export const useChannel = () => {
   const queryClient = useQueryClient();
@@ -16,17 +12,15 @@ export const useChannel = () => {
   const [channelMessage, setChannelMessage] = useState<string | null>(null);
   const channelCheckRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Запрос текущего канала
-  const currentChannelQuery = useQuery({
+  const currentChannelQuery = useQuery<CurrentChannelResponse, Error>({
     queryKey: queryKeys.channel.current,
     queryFn: ({ signal }) => getCurrentChannel(signal),
-    staleTime: 5 * 60 * 1000, // 5 минут
+    staleTime: 5 * 60 * 1000,
     retry: 1,
   });
 
-  // Мутация для сохранения канала
-  const saveChannelMutation = useMutation({
-    mutationFn: (username: string) => saveChannel(username),
+  const saveChannelMutation = useMutation<OkResponse, Error, string>({
+    mutationFn: (username) => saveChannel(username),
     onSuccess: (data) => {
       if (data.ok) {
         setChannelMessage('Канал сохранён');
@@ -34,14 +28,13 @@ export const useChannel = () => {
         void queryClient.invalidateQueries({ queryKey: queryKeys.channel.current });
       }
     },
-    onError: (err: unknown) => {
+    onError: (err) => {
       setChannelMessage(null);
       setChannelError(getErrorMessage(err) || 'Ошибка при сохранении канала');
     },
   });
 
-  // Мутация для удаления канала
-  const deleteChannelMutation = useMutation({
+  const deleteChannelMutation = useMutation<OkResponse, Error, void>({
     mutationFn: () => deleteCurrentChannel(),
     onSuccess: (data) => {
       if (data.ok) {
@@ -50,13 +43,12 @@ export const useChannel = () => {
         void queryClient.invalidateQueries({ queryKey: queryKeys.channel.current });
       }
     },
-    onError: (err: unknown) => {
+    onError: (err) => {
       setChannelMessage(null);
       setChannelError(getErrorMessage(err) || 'Ошибка при удалении канала');
     },
   });
 
-  // Инициализация из localStorage или API
   useEffect(() => {
     if (currentChannelQuery.data?.channel?.username) {
       const username = currentChannelQuery.data.channel.username;
@@ -101,7 +93,6 @@ export const useChannel = () => {
         return;
       }
 
-      // Debounce проверки канала
       if (channelCheckRef.current) {
         clearTimeout(channelCheckRef.current);
         channelCheckRef.current = null;
@@ -109,9 +100,11 @@ export const useChannel = () => {
 
       channelCheckRef.current = setTimeout(async () => {
         try {
-          await checkChannel(username);
-          // После проверки инвалидируем кэш текущего канала
-          void queryClient.invalidateQueries({ queryKey: queryKeys.channel.current });
+          await queryClient.fetchQuery<CheckChannelResponse, Error>({
+            queryKey: queryKeys.channel.check(username),
+            queryFn: ({ signal }) => checkChannel(username, signal),
+            staleTime: 60_000,
+          });
         } catch (err) {
           console.error('Failed to check channel:', err);
         }

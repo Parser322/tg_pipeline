@@ -1,16 +1,17 @@
 import { useMutation } from '@tanstack/react-query';
 import { translateText } from '@/services/api';
+import { getErrorMessage } from '@/lib/errorUtils';
+import type { OkResponse } from '@/types/api';
 
-const getErrorMessage = (error: unknown): string => {
-  if (error instanceof Error) return error.message;
-  if (typeof error === 'string') return error;
-  return 'Неизвестная ошибка';
+type TranslateTextParams = {
+  text: string;
+  lang: string;
+  prompt: string | null;
 };
 
 export const useTranslation = () => {
-  const translationMutation = useMutation({
-    mutationFn: ({ text, lang, prompt }: { text: string; lang: string; prompt: string | null }) =>
-      translateText(text, lang, prompt),
+  const translationMutation = useMutation<OkResponse, Error, TranslateTextParams>({
+    mutationFn: ({ text, lang, prompt }) => translateText(text, lang, prompt),
   });
 
   const handleTranslate = async (text: string, lang: string, prompt: string | null) => {
