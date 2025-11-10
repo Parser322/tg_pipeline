@@ -17,12 +17,10 @@ export const useTranslation = () => {
     try {
       const response = await translateText(text, lang, prompt);
       if (response.data.ok) {
-        // Some backends may return translated_text in data
         const maybeText = (response.data as any).translated_text as string | undefined;
         if (maybeText) {
           setTranslatedText(maybeText);
         } else {
-          // Fallback to success message
           setTranslatedText(response.data.message || '');
         }
       } else {

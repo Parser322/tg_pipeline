@@ -2,9 +2,9 @@
 import React from 'react';
 import { usePipelineContext } from '@/contexts/PipelineContext';
 import { usePostLimit } from '@/hooks/usePostLimit';
+import { useToast } from '@/contexts/ToastContext';
 import { saveChannel, checkChannel, deleteCurrentChannel, getCurrentChannel } from '@/services/api';
 import StatusIndicator from './StatusIndicator';
-import { ProgressSection } from './ProgressSection';
 import { ControlButtons } from './ControlButtons';
 import { MessageAlerts } from './MessageAlerts';
 import { Card, CardContent } from './ui/card';
@@ -16,6 +16,7 @@ import { Alert, AlertDescription } from './ui/alert';
 export default function Dashboard() {
   const { status, error, success, runPipeline, stopPipeline, isLoading } = usePipelineContext();
   const { postLimit, validationError, setPostLimitValue } = usePostLimit();
+  const { showToast, updateToast, dismissToast } = useToast();
   const [periodHours, setPeriodHours] = React.useState<number>(1);
   const [channelUsername, setChannelUsername] = React.useState<string>('');
   const [isChannelSaved, setIsChannelSaved] = React.useState<boolean>(false);
@@ -23,6 +24,9 @@ export default function Dashboard() {
   const [channelError, setChannelError] = React.useState<string | null>(null);
   const [channelMessage, setChannelMessage] = React.useState<string | null>(null);
   const channelCheckRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const progressToastIdRef = React.useRef<string | null>(null);
+  const prevIsRunningRef = React.useRef(status.is_running);
+  const updateProgressTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   React.useEffect(() => {
     getCurrentChannel()
@@ -97,7 +101,6 @@ export default function Dashboard() {
     } else {
       localStorage.removeItem('lastUsedChannel');
     }
-    // мгновенно сбрасываем флаг при пустом инпуте
     if (!username.trim()) {
       setIsChannelSaved(false);
       if (channelCheckRef.current) {
@@ -106,7 +109,6 @@ export default function Dashboard() {
       }
       return;
     }
-    // debounce проверки канала
     if (channelCheckRef.current) {
       clearTimeout(channelCheckRef.current);
       channelCheckRef.current = null;
@@ -130,6 +132,75 @@ export default function Dashboard() {
       }
     };
   }, []);
+
+  React.useEffect(() => {
+    const prevIsRunning = prevIsRunningRef.current;
+    const currentIsRunning = status.is_running;
+    const hasProgress = status.total > 0;
+
+    if (currentIsRunning && !prevIsRunning && hasProgress) {
+      const toastId = showToast({
+        title: 'Загрузка',
+        progress: {
+          processed: status.processed,
+          total: status.total,
+        },
+        duration: 0,
+      });
+      progressToastIdRef.current = toastId;
+    }
+
+    if (currentIsRunning && hasProgress && progressToastIdRef.current) {
+      if (updateProgressTimeoutRef.current) {
+        clearTimeout(updateProgressTimeoutRef.current);
+      }
+
+      updateProgressTimeoutRef.current = setTimeout(() => {
+        if (progressToastIdRef.current) {
+          updateToast(progressToastIdRef.current, {
+            title: 'Загрузка',
+            progress: {
+              processed: status.processed,
+              total: status.total,
+            },
+            duration: 0,
+          });
+        }
+      }, 300);
+    }
+
+    if (currentIsRunning && hasProgress && !progressToastIdRef.current) {
+      const toastId = showToast({
+        title: 'Загрузка',
+        progress: {
+          processed: status.processed,
+          total: status.total,
+        },
+        duration: 0,
+      });
+      progressToastIdRef.current = toastId;
+    }
+
+    if (!currentIsRunning && prevIsRunning && progressToastIdRef.current) {
+      if (updateProgressTimeoutRef.current) {
+        clearTimeout(updateProgressTimeoutRef.current);
+        updateProgressTimeoutRef.current = null;
+      }
+
+      updateToast(progressToastIdRef.current, {
+        duration: 2000,
+      });
+      progressToastIdRef.current = null;
+    }
+
+    prevIsRunningRef.current = currentIsRunning;
+
+    return () => {
+      if (updateProgressTimeoutRef.current) {
+        clearTimeout(updateProgressTimeoutRef.current);
+      }
+    };
+  }, [status.is_running, status.processed, status.total, showToast, updateToast]);
 
   return (
     <div className='min-h-screen bg-background'>
@@ -209,9 +280,6 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {status.total > 0 && (
-              <ProgressSection processed={status.processed} total={status.total} />
-            )}
             {validationError && (
               <p className='text-red-600 text-sm font-medium'>{validationError}</p>
             )}
