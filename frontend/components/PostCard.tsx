@@ -46,12 +46,32 @@ export default function PostCard({ post, onTranslate, onDelete }: PostCardProps)
 
   const formattedDate = useMemo(() => formatPostDate(post.original_date), [post.original_date]);
 
+  // Формируем информацию о канале: название и ссылку
+  const channelDisplay = useMemo(() => {
+    const title = post.channel_title || post.source_channel;
+    const username = post.channel_username || post.source_channel.replace('@', '').replace('t.me/', '');
+    const channelUrl = `https://t.me/${username}`;
+    
+    return { title, channelUrl };
+  }, [post.channel_title, post.channel_username, post.source_channel]);
+
   return (
     <Card className='hover:shadow-md transition-shadow rounded-lg'>
       <CardContent className='p-4 space-y-3'>
         <div className='flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3'>
           <div className='flex-1 min-w-0'>
-            <p className='text-sm font-semibold truncate'>{post.source_channel}</p>
+            <p className='text-sm font-semibold truncate'>
+              {channelDisplay.title}
+              {' '}
+              <a 
+                href={channelDisplay.channelUrl}
+                target='_blank'
+                rel='noopener noreferrer'
+                className='text-xs text-muted-foreground hover:text-primary transition-colors'
+              >
+                ({channelDisplay.channelUrl})
+              </a>
+            </p>
             <div className='flex items-center gap-2 mt-0.5'>
               <p className='text-xs text-muted-foreground'>ID: {post.original_message_id}</p>
               {formattedDate && (

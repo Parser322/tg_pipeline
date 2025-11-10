@@ -38,6 +38,8 @@ export type CheckChannelResponse = {
 export type Post = {
   id: string;
   source_channel: string;
+  channel_title?: string | null;
+  channel_username?: string | null;
   original_message_id: number | string;
   original_date?: string | null;
   original_views?: number | null;

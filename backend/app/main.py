@@ -229,10 +229,25 @@ def _merge_group_metrics(items):
             breakdown[emoji] = max(breakdown.get(emoji, 0), int(cnt or 0))
     return max_views, max_comments, max_likes, breakdown
 
+# === Получение информации о канале ===
+async def get_channel_info(client: TelegramClient, ch: str) -> tuple[str, str]:
+    """
+    Получает информацию о канале из Telegram API.
+    Возвращает (channel_title, channel_username).
+    """
+    entity = await client.get_entity(ch)
+    channel_title = getattr(entity, "title", ch)
+    channel_username = getattr(entity, "username", None)
+    if not channel_username:
+        # Если username нет, пытаемся извлечь из переданного ch
+        channel_username = ch.lstrip("@").replace("t.me/", "")
+    return channel_title, channel_username
+
 # === 2a. Выбор топ-постов за период по метрикам ===
 async def process_top_posts(client: TelegramClient, ch: str, period_days: float, top_counts: dict, desired_total: int | None = None):
     print(f"== Top posts mode: channel {ch}, period_days={period_days}, counts={top_counts}")
     entity = await client.get_entity(ch)
+    channel_title, channel_username = await get_channel_info(client, ch)
     # Поддерживаем дробные дни (например, 0.5 дня = 12 часов)
     days_span = max(0.001, float(period_days))
     since_dt = datetime.utcnow() - timedelta(days=days_span)
@@ -383,6 +398,8 @@ async def process_top_posts(client: TelegramClient, ch: str, period_days: float,
         # --- Собираем данные для сохранения в Supabase ---
         post_to_save = {
             "source_channel": ch,
+            "channel_title": channel_title,
+            "channel_username": channel_username,
             "original_message_id": root_id,
             "original_ids": original_ids,
             "original_date": root_msg.date,
@@ -426,6 +443,7 @@ async def process_top_posts(client: TelegramClient, ch: str, period_days: float,
 async def process_channel(client: TelegramClient, ch: str, limit: int):
     print(f"== Channel: {ch}")
     entity = await client.get_entity(ch)
+    channel_title, channel_username = await get_channel_info(client, ch)
     # last_id = get_last_id(ch) # Проверка на дубликаты отключена
 
     # Запрашиваем последние сообщения без учета min_id
@@ -474,6 +492,8 @@ async def process_channel(client: TelegramClient, ch: str, limit: int):
 
         post_to_save = {
             "source_channel": ch,
+            "channel_title": channel_title,
+            "channel_username": channel_username,
             "original_message_id": root_id,
             "original_ids": original_ids, # один или несколько ID альбома
             "original_date": root_msg.date,
