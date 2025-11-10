@@ -1,12 +1,23 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { usePosts } from '@/hooks/usePosts';
 import { usePostsSort } from '@/hooks/usePostsSort';
 import { usePipeline } from '@/hooks/usePipeline';
 import PostCard from './PostCard';
 import PostsSortSelector from './PostsSortSelector';
 import { Button } from './ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from './ui/alert-dialog';
 import { Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -23,6 +34,7 @@ export default function PostsList() {
     handleDeleteAllPosts,
   } = usePosts(sortBy);
   const { status } = usePipeline();
+  const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
   const prevFinishedRef = useRef<boolean>(false);
 
   useEffect(() => {
@@ -44,15 +56,10 @@ export default function PostsList() {
     }
   }, [successMessage]);
 
-  const handleDeleteAllClick = useCallback(() => {
-    if (posts.length === 0) return;
-    const confirmed = window.confirm(
-      `Вы уверены, что хотите удалить все ${posts.length} постов? Это действие нельзя отменить.`
-    );
-    if (confirmed) {
-      void handleDeleteAllPosts();
-    }
-  }, [posts.length, handleDeleteAllPosts]);
+  const handleDeleteAllConfirm = useCallback(() => {
+    void handleDeleteAllPosts();
+    setDeleteAllDialogOpen(false);
+  }, [handleDeleteAllPosts]);
 
   if (isLoading) {
     return <p className='text-sm text-muted-foreground'>Загрузка постов...</p>;
@@ -65,16 +72,31 @@ export default function PostsList() {
         <div className='flex items-center justify-between gap-3'>
           <PostsSortSelector sortBy={sortBy} onSortChange={setSortBy} />
           {posts.length > 0 && (
-            <Button
-              onClick={handleDeleteAllClick}
-              variant='destructive'
-              size='icon'
-              className='h-9 w-9'
-              aria-label='Очистить все'
-              title='Очистить все'
-            >
-              <Trash2 className='h-4 w-4' />
-            </Button>
+            <AlertDialog open={deleteAllDialogOpen} onOpenChange={setDeleteAllDialogOpen}>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant='destructive'
+                  size='icon'
+                  className='h-9 w-9'
+                  aria-label='Очистить все'
+                  title='Очистить все'
+                >
+                  <Trash2 className='h-4 w-4' />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Удалить все посты?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Вы уверены, что хотите удалить все {posts.length} {posts.length === 1 ? 'пост' : posts.length < 5 ? 'поста' : 'постов'}? Это действие нельзя отменить.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Отмена</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeleteAllConfirm}>Удалить все</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
         </div>
       </div>

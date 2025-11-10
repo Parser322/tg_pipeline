@@ -3,6 +3,17 @@ import Image from 'next/image';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from './ui/alert-dialog';
 import type { Post, MediaItem } from '@/types/api';
 import { Eye, Star, Languages, Trash2, MessageSquare, Sparkles, Smile, ChevronDown, Calendar } from 'lucide-react';
 import { formatPostDate } from '@/lib/dateUtils';
@@ -27,17 +38,16 @@ function isGifMedia(m: MediaItem): boolean {
 
 export default function PostCard({ post, onTranslate, onDelete }: PostCardProps) {
   const [activeTab, setActiveTab] = useState<'original' | 'translated'>('original');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   
   const firstMedia = useMemo(
     () => (post.media && post.media.length > 0 ? post.media[0] : undefined),
     [post.media]
   );
 
-  const handleDeleteClick = useCallback(() => {
-    const confirmed = window.confirm('Вы уверены, что хотите удалить этот пост?');
-    if (confirmed) {
-      onDelete(post.id);
-    }
+  const handleDeleteConfirm = useCallback(() => {
+    onDelete(post.id);
+    setDeleteDialogOpen(false);
   }, [post.id, onDelete]);
 
   const handleTranslateClick = useCallback(() => {
@@ -186,16 +196,31 @@ export default function PostCard({ post, onTranslate, onDelete }: PostCardProps)
               <Languages className='h-4 w-4' />
             </Button>
           )}
-          <Button
-            onClick={handleDeleteClick}
-            size='icon'
-            variant='destructive'
-            className='h-9 w-9'
-            aria-label='Удалить пост'
-            title='Удалить пост'
-          >
-            <Trash2 className='h-4 w-4' />
-          </Button>
+          <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+            <AlertDialogTrigger asChild>
+              <Button
+                size='icon'
+                variant='destructive'
+                className='h-9 w-9'
+                aria-label='Удалить пост'
+                title='Удалить пост'
+              >
+                <Trash2 className='h-4 w-4' />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Удалить пост?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Вы уверены, что хотите удалить этот пост? Это действие нельзя отменить.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Отмена</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDeleteConfirm}>Удалить</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </CardContent>
     </Card>
