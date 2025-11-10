@@ -4,7 +4,8 @@ import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import type { Post, MediaItem } from '@/types/api';
-import { Eye, Star, Languages, Trash2, MessageSquare, Sparkles, Smile, ChevronDown } from 'lucide-react';
+import { Eye, Star, Languages, Trash2, MessageSquare, Sparkles, Smile, ChevronDown, Calendar } from 'lucide-react';
+import { formatPostDate } from '@/lib/dateUtils';
 
 type PostCardProps = {
   post: Post;
@@ -43,13 +44,26 @@ export default function PostCard({ post, onTranslate, onDelete }: PostCardProps)
     onTranslate(post.id, 'EN');
   }, [post.id, onTranslate]);
 
+  const formattedDate = useMemo(() => formatPostDate(post.original_date), [post.original_date]);
+
   return (
     <Card className='hover:shadow-md transition-shadow rounded-lg'>
       <CardContent className='p-4 space-y-3'>
         <div className='flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3'>
           <div className='flex-1 min-w-0'>
             <p className='text-sm font-semibold truncate'>{post.source_channel}</p>
-            <p className='text-xs text-muted-foreground mt-0.5'>ID: {post.original_message_id}</p>
+            <div className='flex items-center gap-2 mt-0.5'>
+              <p className='text-xs text-muted-foreground'>ID: {post.original_message_id}</p>
+              {formattedDate && (
+                <>
+                  <span className='text-xs text-muted-foreground'>•</span>
+                  <div className='flex items-center gap-1 text-xs text-muted-foreground'>
+                    <Calendar className='h-3 w-3' />
+                    <span>{formattedDate}</span>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
           <div className='mt-1 sm:mt-0 flex items-center gap-1 sm:gap-2 shrink-0'>
             {post.is_top_post && (

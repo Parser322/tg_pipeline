@@ -1,30 +1,23 @@
 import { useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getPosts, translatePost as translatePostApi, deletePost as deletePostApi, deleteAllPosts as deleteAllPostsApi } from '@/services/api';
-import type { Post, OkResponse } from '@/types/api';
+import type { Post, OkResponse, SortBy } from '@/types/api';
 import { queryKeys } from '@/lib/queryKeys';
 import { getErrorMessage } from '@/lib/errorUtils';
 
 type TranslatePostParams = { postId: string; targetLang: string };
 
-export const usePosts = () => {
+export const usePosts = (sortBy: SortBy = 'saved_at') => {
   const queryClient = useQueryClient();
 
   const postsQuery = useQuery<Post[], Error>({
-    queryKey: queryKeys.posts,
+    queryKey: [...queryKeys.posts, sortBy],
     queryFn: async ({ signal }) => {
-      const response = await getPosts(signal);
+      const response = await getPosts(signal, sortBy);
       if (!response.ok) {
         throw new Error('Failed to fetch posts');
       }
       return response.posts;
-    },
-    select: (data) => {
-      return [...data].sort((a, b) => {
-        const idA = typeof a.id === 'string' ? parseInt(a.id, 10) : a.id;
-        const idB = typeof b.id === 'string' ? parseInt(b.id, 10) : b.id;
-        return idB - idA;
-      });
     },
     staleTime: 15_000,
   });
@@ -32,49 +25,51 @@ export const usePosts = () => {
   const translateMutation = useMutation<OkResponse, Error, TranslatePostParams>({
     mutationFn: ({ postId, targetLang }) => translatePostApi(postId, targetLang),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.posts });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.posts, exact: false });
     },
   });
 
   const deleteMutation = useMutation<OkResponse, Error, string>({
     mutationFn: (postId) => deletePostApi(postId),
     onMutate: async (postId) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.posts });
-      const previousPosts = queryClient.getQueryData<Post[]>(queryKeys.posts);
+      await queryClient.cancelQueries({ queryKey: queryKeys.posts, exact: false });
+      const currentQueryKey = [...queryKeys.posts, sortBy];
+      const previousPosts = queryClient.getQueryData<Post[]>(currentQueryKey);
       
-      queryClient.setQueryData<Post[]>(queryKeys.posts, (old) =>
+      queryClient.setQueryData<Post[]>(currentQueryKey, (old) =>
         old?.filter((post) => post.id !== postId) ?? []
       );
       
-      return { previousPosts };
+      return { previousPosts, currentQueryKey };
     },
     onError: (err, postId, context) => {
-      if (context?.previousPosts) {
-        queryClient.setQueryData(queryKeys.posts, context.previousPosts);
+      if (context?.previousPosts && context?.currentQueryKey) {
+        queryClient.setQueryData(context.currentQueryKey, context.previousPosts);
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.posts });
+      queryClient.invalidateQueries({ queryKey: queryKeys.posts, exact: false });
     },
   });
 
   const deleteAllMutation = useMutation<OkResponse, Error, void>({
     mutationFn: () => deleteAllPostsApi(),
     onMutate: async () => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.posts });
-      const previousPosts = queryClient.getQueryData<Post[]>(queryKeys.posts);
+      await queryClient.cancelQueries({ queryKey: queryKeys.posts, exact: false });
+      const currentQueryKey = [...queryKeys.posts, sortBy];
+      const previousPosts = queryClient.getQueryData<Post[]>(currentQueryKey);
       
-      queryClient.setQueryData<Post[]>(queryKeys.posts, []);
+      queryClient.setQueryData<Post[]>(currentQueryKey, []);
       
-      return { previousPosts };
+      return { previousPosts, currentQueryKey };
     },
     onError: (err, _, context) => {
-      if (context?.previousPosts) {
-        queryClient.setQueryData(queryKeys.posts, context.previousPosts);
+      if (context?.previousPosts && context?.currentQueryKey) {
+        queryClient.setQueryData(context.currentQueryKey, context.previousPosts);
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.posts });
+      queryClient.invalidateQueries({ queryKey: queryKeys.posts, exact: false });
     },
   });
 

@@ -5,6 +5,7 @@ import type {
   GetPostsResponse,
   CheckChannelResponse,
   CurrentChannelResponse,
+  SortBy,
 } from '@/types/api';
 
 class PipelineAPI {
@@ -36,8 +37,10 @@ export const translateText = (
   return apiClient.post('/translate', { text, target_lang, prompt });
 };
 
-export const getPosts = (signal?: AbortSignal): Promise<GetPostsResponse> =>
-  apiClient.get('/posts', signal);
+export const getPosts = (signal?: AbortSignal, sortBy: SortBy = 'original_date'): Promise<GetPostsResponse> => {
+  const params = new URLSearchParams({ sort_by: sortBy });
+  return apiClient.get(`/posts?${params.toString()}`, signal);
+};
 
 export const translatePost = (
   postId: string,

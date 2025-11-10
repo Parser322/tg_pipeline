@@ -315,9 +315,28 @@ def save_post_media(post_id: str, media_items: List[Dict[str, Any]]) -> int:
 
  
 
-def get_all_posts() -> List[Dict[str, Any]]:
+def get_all_posts(sort_by: str = "original_date") -> List[Dict[str, Any]]:
+    """
+    Возвращает все посты с сортировкой.
+    
+    Args:
+        sort_by: Поле для сортировки ('original_date' или 'saved_at')
+        
+    Логика сортировки:
+        - 'saved_at': от новых к старым (последние загруженные сверху)
+        - 'original_date': от старых к новым (хронологический порядок публикации)
+    """
     try:
-        response = _client().table(POSTS_TABLE).select("*").order("original_date", desc=True).execute()
+        # Валидация параметра сортировки
+        valid_sort_fields = ["original_date", "saved_at"]
+        if sort_by not in valid_sort_fields:
+            logger.warning("Invalid sort_by value '%s', defaulting to 'original_date'", sort_by)
+            sort_by = "original_date"
+        
+        # Для saved_at - от новых к старым, для original_date - от старых к новым (хронологический порядок)
+        desc_order = (sort_by == "saved_at")
+        
+        response = _client().table(POSTS_TABLE).select("*").order(sort_by, desc=desc_order).execute()
         if _has_error(response):
             raise RuntimeError(getattr(response, "error", "Unknown Supabase error"))
         return response.data or []
@@ -326,11 +345,14 @@ def get_all_posts() -> List[Dict[str, Any]]:
         return []
 
 
-def get_all_posts_with_media() -> List[Dict[str, Any]]:
+def get_all_posts_with_media(sort_by: str = "original_date") -> List[Dict[str, Any]]:
     """
     Возвращает посты и вложенные для них медиа (массив media[]).
+    
+    Args:
+        sort_by: Поле для сортировки ('original_date' или 'saved_at')
     """
-    posts = get_all_posts()
+    posts = get_all_posts(sort_by=sort_by)
     if not posts:
         return []
     post_ids = [p.get("id") for p in posts if p.get("id")]

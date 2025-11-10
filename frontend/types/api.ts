@@ -39,6 +39,7 @@ export type Post = {
   id: string;
   source_channel: string;
   original_message_id: number | string;
+  original_date?: string | null;
   original_views?: number | null;
   original_likes?: number | null;
   original_comments?: number | null;
@@ -50,6 +51,8 @@ export type Post = {
   media_count?: number;
   media?: MediaItem[];
 };
+
+export type SortBy = 'original_date' | 'saved_at';
 
 export type GetPostsResponse = {
   ok: boolean;

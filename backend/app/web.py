@@ -291,10 +291,15 @@ async def translate_endpoint(payload: TranslationPayload):
 # --- Эндпоинты для управления сохраненными постами ---
 
 @app.get("/posts")
-async def list_posts_endpoint():
-    """Возвращает список всех сохраненных постов."""
+async def list_posts_endpoint(sort_by: str = "original_date"):
+    """
+    Возвращает список всех сохраненных постов.
+    
+    Query params:
+        sort_by: Поле для сортировки ('original_date' - по времени поста, 'saved_at' - по времени загрузки)
+    """
     # Возвращаем посты с вложениями media[]
-    posts = get_all_posts_with_media()
+    posts = get_all_posts_with_media(sort_by=sort_by)
     return {"ok": True, "posts": posts}
 
 class ManualTranslationPayload(BaseModel):

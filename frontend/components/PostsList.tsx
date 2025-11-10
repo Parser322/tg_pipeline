@@ -2,13 +2,16 @@
 
 import { useEffect, useRef, useCallback } from 'react';
 import { usePosts } from '@/hooks/usePosts';
+import { usePostsSort } from '@/hooks/usePostsSort';
 import { usePipeline } from '@/hooks/usePipeline';
 import PostCard from './PostCard';
+import PostsSortSelector from './PostsSortSelector';
 import { Button } from './ui/button';
 import { Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function PostsList() {
+  const { sortBy, setSortBy } = usePostsSort();
   const {
     posts,
     isLoading,
@@ -18,7 +21,7 @@ export default function PostsList() {
     handleTranslatePost,
     handleDeletePost,
     handleDeleteAllPosts,
-  } = usePosts();
+  } = usePosts(sortBy);
   const { status } = usePipeline();
   const prevFinishedRef = useRef<boolean>(false);
 
@@ -57,27 +60,30 @@ export default function PostsList() {
 
   return (
     <div>
-      <div className='mb-4 flex items-center justify-between'>
+      <div className='mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
         <h1 className='text-xl md:text-2xl font-bold'>Сохранённые посты</h1>
-        {posts.length > 0 && (
-          <Button
-            onClick={handleDeleteAllClick}
-            variant='destructive'
-            size='icon'
-            className='h-9 w-9'
-            aria-label='Очистить все'
-            title='Очистить все'
-          >
-            <Trash2 className='h-4 w-4' />
-          </Button>
-        )}
+        <div className='flex items-center justify-between gap-3'>
+          <PostsSortSelector sortBy={sortBy} onSortChange={setSortBy} />
+          {posts.length > 0 && (
+            <Button
+              onClick={handleDeleteAllClick}
+              variant='destructive'
+              size='icon'
+              className='h-9 w-9'
+              aria-label='Очистить все'
+              title='Очистить все'
+            >
+              <Trash2 className='h-4 w-4' />
+            </Button>
+          )}
+        </div>
       </div>
       {posts.length === 0 ? (
         <p className='text-sm text-muted-foreground'>Постов пока нет</p>
       ) : (
-        <div className='columns-1 sm:columns-2 lg:columns-3 3xl:columns-4 gap-x-4'>
+        <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 3xl:grid-cols-4 gap-4'>
           {posts.map((post) => (
-            <div key={post.id} className='mb-4 break-inside-avoid'>
+            <div key={post.id}>
               <PostCard post={post} onTranslate={handleTranslatePost} onDelete={handleDeletePost} />
             </div>
           ))}
