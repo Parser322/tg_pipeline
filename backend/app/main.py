@@ -110,21 +110,50 @@ async def download_and_brand(client, message):
     if not message.media:
         return paths
     try:
+        print(f"Downloading media from message {message.id}, media type: {type(message.media).__name__}")
         raw = await client.download_media(message)
         if raw:
+            print(f"Downloaded file: {raw}")
             low = raw.lower()
-            if low.endswith((".jpg",".jpeg",".png",".webp",".bmp",".tiff")):
+            
+            # Определяем тип медиа по атрибутам сообщения Telegram
+            media_type = None
+            if hasattr(message.media, 'photo'):
+                media_type = 'image'
+            elif hasattr(message.media, 'document'):
+                doc = message.media.document
+                if doc and hasattr(doc, 'mime_type'):
+                    mime = doc.mime_type or ""
+                    print(f"Document MIME type: {mime}")
+                    if mime.startswith('video/'):
+                        media_type = 'video'
+                    elif mime.startswith('image/'):
+                        media_type = 'image'
+            
+            # Обработка изображений
+            if low.endswith((".jpg",".jpeg",".png",".webp",".bmp",".tiff")) or media_type == 'image':
+                print(f"Processing as image: {raw}")
                 paths.append(add_logo_image(raw, CFG["logo"]["path"],
                                             CFG["logo"]["position"], CFG["logo"]["margin"]))
                 try: os.remove(raw)
                 except: pass
-            elif low.endswith((".mp4",".mov",".mkv",".webm",".m4v")):
-                paths.append(brand_video(raw, CFG["logo"]["path"]))
+            # Обработка видео
+            elif low.endswith((".mp4",".mov",".mkv",".webm",".m4v")) or media_type == 'video':
+                print(f"Processing as video: {raw}")
+                branded_path = brand_video(raw, CFG["logo"]["path"])
+                print(f"Video processed, path: {branded_path}")
+                paths.append(branded_path)
             else:
+                print(f"Processing as other media type: {raw}")
                 dst = OUT / pathlib.Path(raw).name
-                shutil.move(raw, dst); paths.append(str(dst))
+                shutil.move(raw, dst)
+                paths.append(str(dst))
+            
+            print(f"Media paths collected: {paths}")
     except Exception as e:
-        print("Media download error:", e)
+        print(f"Media download error for message {message.id}: {e}")
+        import traceback
+        traceback.print_exc()
     return paths
 
 def group_messages_into_post_units(messages):

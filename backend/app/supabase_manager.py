@@ -224,17 +224,33 @@ def upload_media_files(local_paths: List[str], channel: str, original_message_id
     """
     results: List[Dict[str, Any]] = []
     if not local_paths:
+        logger.info("No media files to upload")
         return results
+    
+    logger.info(f"Starting upload of {len(local_paths)} media files for message {original_message_id}")
+    
     # На всякий случай гарантируем наличие bucket перед загрузкой
     _ensure_media_bucket()
     safe_channel = _slugify_path_part(channel.lstrip("@"))
     folder = f"{safe_channel}/{original_message_id}"
     storage = _client().storage.from_(MEDIA_BUCKET)
+    
     for idx, local_path in enumerate(local_paths):
         try:
+            # Проверяем существование файла
+            if not pathlib.Path(local_path).exists():
+                logger.error(f"File does not exist: {local_path}")
+                continue
+            
+            file_size = pathlib.Path(local_path).stat().st_size
+            logger.info(f"Uploading file {idx+1}/{len(local_paths)}: {local_path} (size: {file_size} bytes)")
+            
             mime, media_type = _guess_mime_type(local_path)
+            logger.info(f"Detected MIME type: {mime}, media type: {media_type}")
+            
             name = pathlib.Path(local_path).name
             dest_path = f"{folder}/{name}"
+            
             with open(local_path, "rb") as f:
                 # В storage-py параметры upload передаются как HTTP-заголовки.
                 # Нельзя передавать bool, иначе httpx ругается: "Header value must be str or bytes".
@@ -247,7 +263,10 @@ def upload_media_files(local_paths: List[str], channel: str, original_message_id
                         "x-upsert": "true",
                     },
                 )
+            
             public_url = storage.get_public_url(dest_path)
+            logger.info(f"Successfully uploaded to: {public_url}")
+            
             results.append({
                 "media_type": media_type,
                 "mime_type": mime,
