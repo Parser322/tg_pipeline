@@ -29,7 +29,7 @@ export const usePosts = (sortBy: SortBy = 'saved_at') => {
     },
   });
 
-  const deleteMutation = useMutation<OkResponse, Error, string>({
+  const deleteMutation = useMutation<OkResponse, Error, string, { previousPosts?: Post[]; currentQueryKey: string[] }>({
     mutationFn: (postId) => deletePostApi(postId),
     onMutate: async (postId) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.posts, exact: false });
@@ -52,7 +52,7 @@ export const usePosts = (sortBy: SortBy = 'saved_at') => {
     },
   });
 
-  const deleteAllMutation = useMutation<OkResponse, Error, void>({
+  const deleteAllMutation = useMutation<OkResponse, Error, void, { previousPosts?: Post[]; currentQueryKey: string[] }>({
     mutationFn: () => deleteAllPostsApi(),
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: queryKeys.posts, exact: false });
