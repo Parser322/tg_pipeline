@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { usePosts } from '@/hooks/usePosts';
 import { usePipelineContext } from '@/contexts/PipelineContext';
 import PostCard from './PostCard';
@@ -8,7 +8,7 @@ import { Button } from './ui/button';
 import { Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-const PostsList = () => {
+export default function PostsList() {
   const {
     posts,
     isLoading,
@@ -24,7 +24,7 @@ const PostsList = () => {
 
   useEffect(() => {
     if (status.finished && !prevFinishedRef.current) {
-      fetchPosts();
+      void fetchPosts();
     }
     prevFinishedRef.current = status.finished;
   }, [status.finished, fetchPosts]);
@@ -41,19 +41,19 @@ const PostsList = () => {
     }
   }, [message]);
 
-  if (isLoading) {
-    return <p className='text-sm text-muted-foreground'>Загрузка постов...</p>;
-  }
-
-  const handleDeleteAllClick = () => {
+  const handleDeleteAllClick = useCallback(() => {
     if (posts.length === 0) return;
     const confirmed = window.confirm(
       `Вы уверены, что хотите удалить все ${posts.length} постов? Это действие нельзя отменить.`
     );
     if (confirmed) {
-      handleDeleteAllPosts();
+      void handleDeleteAllPosts();
     }
-  };
+  }, [posts.length, handleDeleteAllPosts]);
+
+  if (isLoading) {
+    return <p className='text-sm text-muted-foreground'>Загрузка постов...</p>;
+  }
 
   return (
     <div>
@@ -85,6 +85,4 @@ const PostsList = () => {
       )}
     </div>
   );
-};
-
-export default PostsList;
+}

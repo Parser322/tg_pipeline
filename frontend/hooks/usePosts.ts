@@ -4,6 +4,12 @@ import { getPosts, translatePost as translatePostApi, deletePost as deletePostAp
 import type { Post } from '@/types/api';
 import { queryKeys } from '@/lib/queryKeys';
 
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  return 'Неизвестная ошибка';
+};
+
 export const usePosts = () => {
   const queryClient = useQueryClient();
   const [actionError, setActionError] = useState<string | null>(null);
@@ -11,10 +17,10 @@ export const usePosts = () => {
 
   const postsQuery = useQuery({
     queryKey: queryKeys.posts,
-    queryFn: async () => {
-      const response = await getPosts();
-      if (response.data.ok) {
-        return response.data.posts as Post[];
+    queryFn: async ({ signal }) => {
+      const response = await getPosts(signal);
+      if (response.ok) {
+        return response.posts;
       }
       throw new Error('Failed to fetch posts');
     },
@@ -29,8 +35,8 @@ export const usePosts = () => {
       setMessage('Пост переведён');
       setActionError(null);
     },
-    onError: (err: any) => {
-      setActionError(`Ошибка перевода: ${(err as Error).message}`);
+    onError: (err: unknown) => {
+      setActionError(`Ошибка перевода: ${getErrorMessage(err)}`);
       setMessage(null);
     },
   });
@@ -42,21 +48,21 @@ export const usePosts = () => {
       setMessage('Пост удалён');
       setActionError(null);
     },
-    onError: (err: any) => {
-      setActionError(`Ошибка удаления: ${(err as Error).message}`);
+    onError: (err: unknown) => {
+      setActionError(`Ошибка удаления: ${getErrorMessage(err)}`);
       setMessage(null);
     },
   });
 
   const deleteAllMutation = useMutation({
     mutationFn: () => deleteAllPostsApi(),
-    onSuccess: async (response) => {
+    onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.posts });
-      setMessage(response.data.message || 'Все посты удалены');
+      setMessage(data.message || 'Все посты удалены');
       setActionError(null);
     },
-    onError: (err: any) => {
-      setActionError(`Ошибка очистки: ${(err as Error).message}`);
+    onError: (err: unknown) => {
+      setActionError(`Ошибка очистки: ${getErrorMessage(err)}`);
       setMessage(null);
     },
   });
@@ -83,12 +89,10 @@ export const usePosts = () => {
     await deleteAllMutation.mutateAsync();
   }, [deleteAllMutation]);
 
- 
-
   return {
-    posts: (postsQuery.data as Post[] | undefined) ?? [],
+    posts: postsQuery.data ?? [],
     isLoading: postsQuery.isLoading,
-    error: (actionError ?? ((postsQuery.error as Error | null)?.message ?? null)) as string | null,
+    error: actionError ?? (postsQuery.error ? getErrorMessage(postsQuery.error) : null),
     message,
     fetchPosts,
     handleTranslatePost,

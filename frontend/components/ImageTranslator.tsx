@@ -1,5 +1,5 @@
 'use client';
-import React from 'react';
+import { useState, useCallback, useEffect, type ChangeEvent } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { toast } from 'sonner';
@@ -8,24 +8,29 @@ type ImageTranslatorProps = {
   translateText: (text: string) => Promise<string>;
 };
 
-export default function ImageTranslator({ translateText }: ImageTranslatorProps) {
-  const [file, setFile] = React.useState<File | null>(null);
-  const [preview, setPreview] = React.useState<string | null>(null);
-  const [translated, setTranslated] = React.useState<string>('');
-  const [resultImage, setResultImage] = React.useState<string | null>(null);
-  const [progress, setProgress] = React.useState<number>(0);
-  const [error, setError] = React.useState<string | null>(null);
+type TesseractLogger = {
+  status: string;
+  progress?: number;
+};
 
-  const onSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+export default function ImageTranslator({ translateText }: ImageTranslatorProps) {
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [translated, setTranslated] = useState<string>('');
+  const [resultImage, setResultImage] = useState<string | null>(null);
+  const [progress, setProgress] = useState<number>(0);
+  const [error, setError] = useState<string | null>(null);
+
+  const onSelect = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
     setFile(f);
     const reader = new FileReader();
     reader.onload = (ev) => setPreview(String(ev.target?.result || ''));
     reader.readAsDataURL(f);
-  };
+  }, []);
 
-  const run = async () => {
+  const run = useCallback(async () => {
     if (!file) return;
     setError(null);
     setProgress(0);
@@ -34,8 +39,10 @@ export default function ImageTranslator({ translateText }: ImageTranslatorProps)
 
     const Tesseract = (await import('tesseract.js')).default;
     const { data } = await Tesseract.recognize(file, 'rus+eng', {
-      logger: (m: any) => {
-        if (m.status === 'recognizing text' && m.progress) setProgress(Math.round(m.progress * 100));
+      logger: (m: TesseractLogger) => {
+        if (m.status === 'recognizing text' && m.progress) {
+          setProgress(Math.round(m.progress * 100));
+        }
       },
     });
     const originalText = (data?.text || '').trim();
@@ -51,7 +58,9 @@ export default function ImageTranslator({ translateText }: ImageTranslatorProps)
     img.onload = () => {
       const padding = 40;
       const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d')!;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      
       const baseWidth = img.width;
 
       ctx.font = 'bold 20px Arial';
@@ -93,13 +102,21 @@ export default function ImageTranslator({ translateText }: ImageTranslatorProps)
     };
     img.onerror = () => setError('Ошибка загрузки изображения');
     if (preview) img.src = preview;
-  };
+  }, [file, preview, translateText]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (error) {
       toast.error('Ошибка', { description: error, duration: 4000 });
     }
   }, [error]);
+
+  const handleDownload = useCallback(() => {
+    if (!resultImage) return;
+    const a = document.createElement('a');
+    a.href = resultImage;
+    a.download = 'translated.png';
+    a.click();
+  }, [resultImage]);
 
   return (
     <Card className='shadow-2xl bg-black/80 backdrop-blur-sm border-gray-800'>
@@ -127,15 +144,9 @@ export default function ImageTranslator({ translateText }: ImageTranslatorProps)
           <div className='space-y-2'>
             <p className='text-sm font-medium'>Изображение с переведённым текстом (снизу):</p>
             <img src={resultImage} alt='result' className='max-w-full rounded border bg-white' />
-            <Button
-              variant='outline'
-              onClick={() => {
-                const a = document.createElement('a');
-                a.href = resultImage;
-                a.download = 'translated.png';
-                a.click();
-              }}
-            >Скачать</Button>
+            <Button variant='outline' onClick={handleDownload}>
+              Скачать
+            </Button>
           </div>
         )}
       </CardContent>

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import Image from 'next/image';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
@@ -19,10 +19,30 @@ function isVideoMedia(m: MediaItem): boolean {
   return url.endsWith('.mp4') || url.endsWith('.mov') || url.endsWith('.mkv') || url.endsWith('.webm') || url.endsWith('.m4v');
 }
 
-const PostCard = ({ post, onTranslate, onDelete }: PostCardProps) => {
+function isGifMedia(m: MediaItem): boolean {
+  if ((m.mime_type || '').toLowerCase() === 'image/gif') return true;
+  return m.url.toLowerCase().endsWith('.gif');
+}
+
+export default function PostCard({ post, onTranslate, onDelete }: PostCardProps) {
   const [activeTab, setActiveTab] = useState<'original' | 'translated'>('original');
-  const firstMedia: MediaItem | undefined =
-    post.media && post.media.length > 0 ? post.media[0] : undefined;
+  
+  const firstMedia = useMemo(
+    () => (post.media && post.media.length > 0 ? post.media[0] : undefined),
+    [post.media]
+  );
+
+  const handleDeleteClick = useCallback(() => {
+    const confirmed = window.confirm('Вы уверены, что хотите удалить этот пост?');
+    if (confirmed) {
+      onDelete(post.id);
+    }
+  }, [post.id, onDelete]);
+
+  const handleTranslateClick = useCallback(() => {
+    onTranslate(post.id, 'EN');
+  }, [post.id, onTranslate]);
+
   return (
     <Card className='hover:shadow-md transition-shadow rounded-lg'>
       <CardContent className='p-4 space-y-3'>
@@ -54,12 +74,13 @@ const PostCard = ({ post, onTranslate, onDelete }: PostCardProps) => {
             ) : (
               <Image
                 src={firstMedia.url}
-                alt=''
+                alt={`Media from ${post.source_channel}`}
                 fill
                 className='object-contain'
                 loading='lazy'
-                unoptimized={((firstMedia.mime_type || '').toLowerCase() === 'image/gif') || firstMedia.url.toLowerCase().endsWith('.gif')}
-                sizes='(max-width: 640px) 100vw, 50vw'
+                unoptimized={isGifMedia(firstMedia)}
+                sizes='(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw'
+                priority={false}
               />
             )}
           </div>
@@ -123,7 +144,7 @@ const PostCard = ({ post, onTranslate, onDelete }: PostCardProps) => {
         <div className='flex gap-2'>
           {!post.translated_content && post.content && (
             <Button
-              onClick={() => onTranslate(post.id, 'EN')}
+              onClick={handleTranslateClick}
               size='icon'
               variant='outline'
               className='h-9 w-9'
@@ -134,12 +155,7 @@ const PostCard = ({ post, onTranslate, onDelete }: PostCardProps) => {
             </Button>
           )}
           <Button
-            onClick={() => {
-              const confirmed = window.confirm('Вы уверены, что хотите удалить этот пост?');
-              if (confirmed) {
-                onDelete(post.id);
-              }
-            }}
+            onClick={handleDeleteClick}
             size='icon'
             variant='destructive'
             className='h-9 w-9'
@@ -152,7 +168,7 @@ const PostCard = ({ post, onTranslate, onDelete }: PostCardProps) => {
       </CardContent>
     </Card>
   );
-};
+}
 
 type ReactionsSummaryProps = {
   reactions?: Record<string, number> | null;
@@ -248,5 +264,3 @@ function ReactionsSummary({ reactions, fallbackLikes }: ReactionsSummaryProps) {
     </div>
   );
 }
-
-export default PostCard;

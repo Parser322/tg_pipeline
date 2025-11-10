@@ -1,24 +1,24 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 
-const usePostLimit = () => {
+const validatePostLimit = (value: number): string => {
+  if (!value || value < 1) {
+    return 'Лимит должен быть больше 0';
+  }
+  if (value > 1000) {
+    return 'Лимит не должен превышать 1000';
+  }
+  if (!Number.isInteger(value)) {
+    return 'Лимит должен быть целым числом';
+  }
+  return '';
+};
+
+export const usePostLimit = () => {
   const [postLimit, setPostLimit] = useState<number>(3);
   const [validationError, setValidationError] = useState<string>('');
 
-  const validatePostLimit = (value: number): string => {
-    if (!value || value < 1) {
-      return 'Лимит должен быть больше 0';
-    }
-    if (value > 1000) {
-      return 'Лимит не должен превышать 1000';
-    }
-    if (!Number.isInteger(value)) {
-      return 'Лимит должен быть целым числом';
-    }
-    return '';
-  };
-
   const handlePostLimitChange = useCallback((event: { target: { value: string } }) => {
-    const value = parseInt(event.target.value) || 0;
+    const value = parseInt(event.target.value, 10) || 0;
     setPostLimit(value);
     const error = validatePostLimit(value);
     setValidationError(error);
@@ -31,15 +31,16 @@ const usePostLimit = () => {
     setValidationError(error);
   }, []);
 
-  return {
-    postLimit,
-    validationError,
-    handlePostLimitChange,
-    setPostLimitValue,
-  };
+  return useMemo(
+    () => ({
+      postLimit,
+      validationError,
+      handlePostLimitChange,
+      setPostLimitValue,
+    }),
+    [postLimit, validationError, handlePostLimitChange, setPostLimitValue]
+  );
 };
-
-export { usePostLimit };
 
 
 

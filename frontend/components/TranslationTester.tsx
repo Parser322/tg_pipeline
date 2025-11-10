@@ -1,20 +1,26 @@
 'use client';
-import React, { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useTranslation } from '@/hooks/useTranslation';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
+import { toast } from 'sonner';
 
-const TranslationTester = () => {
+export default function TranslationTester() {
   const { translatedText, isTranslating, translationError, handleTranslate } = useTranslation();
   const [testText, setTestText] = useState<string>('Привет, как дела?');
   const [targetLang, setTargetLang] = useState<string>('EN');
 
-  const handleSubmit = () => {
+  const handleSubmit = useCallback(async () => {
     if (testText.trim()) {
-      handleTranslate(testText, targetLang, null);
+      try {
+        await handleTranslate(testText, targetLang, null);
+        toast.success('Перевод выполнен');
+      } catch (error) {
+        toast.error('Ошибка перевода');
+      }
     }
-  };
+  }, [testText, targetLang, handleTranslate]);
 
   return (
     <Card className='shadow-sm border border-gray-200 bg-white'>
@@ -66,9 +72,7 @@ const TranslationTester = () => {
       </CardContent>
     </Card>
   );
-};
-
-export default TranslationTester;
+}
 
 
 

@@ -1,8 +1,9 @@
 'use client';
-import React from 'react';
+import { useEffect, useMemo, useCallback } from 'react';
 import { usePipelineContext } from '@/contexts/PipelineContext';
 import { usePostLimit } from '@/hooks/usePostLimit';
-import { saveChannel, checkChannel, deleteCurrentChannel, getCurrentChannel } from '@/services/api';
+import { useChannel } from '@/hooks/useChannel';
+import { useProgressToast } from '@/hooks/useProgressToast';
 import StatusIndicator from './StatusIndicator';
 import { ControlButtons } from './ControlButtons';
 import { Card, CardContent } from './ui/card';
@@ -10,232 +11,65 @@ import { NumberInput } from './ui/number-input';
 import { Switch } from './ui/switch';
 import { ChannelInput } from './ui/channel-input';
 import { toast } from 'sonner';
-import { Progress } from './ui/progress';
+import { useState } from 'react';
 
 export default function Dashboard() {
   const { status, error, success, runPipeline, stopPipeline, isLoading } = usePipelineContext();
   const { postLimit, validationError, setPostLimitValue } = usePostLimit();
-  const [periodHours, setPeriodHours] = React.useState<number>(1);
-  const [channelUsername, setChannelUsername] = React.useState<string>('');
-  const [isChannelSaved, setIsChannelSaved] = React.useState<boolean>(false);
-  const [isTopPosts, setIsTopPosts] = React.useState<boolean>(false);
-  const [channelError, setChannelError] = React.useState<string | null>(null);
-  const [channelMessage, setChannelMessage] = React.useState<string | null>(null);
-  const channelCheckRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const progressToastIdRef = React.useRef<string | null>(null);
-  const prevIsRunningRef = React.useRef(status.is_running);
-  const updateProgressTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [periodHours, setPeriodHours] = useState<number>(1);
+  const [isTopPosts, setIsTopPosts] = useState<boolean>(false);
 
-  // Notifications for pipeline success/error
-  React.useEffect(() => {
+  const {
+    channelUsername,
+    isChannelSaved,
+    channelError,
+    channelMessage,
+    handleChannelSave,
+    handleChannelUnsave,
+    handleChannelChange,
+  } = useChannel();
+
+  // Используем хук для управления тостом прогресса
+  useProgressToast(status);
+
+  // Уведомления об ошибках и успехе
+  useEffect(() => {
     if (error) {
       toast.error('Ошибка', { description: error });
     }
   }, [error]);
 
-  // Нейтральная нотификация об успешном запуске/остановке (без зеленого цвета)
-  React.useEffect(() => {
+  useEffect(() => {
     if (success) {
       toast(success);
     }
   }, [success]);
 
-  // Notifications for channel actions
-  React.useEffect(() => {
+  // Уведомления для канала
+  useEffect(() => {
     if (channelError) {
       toast.error('Ошибка канала', { description: channelError });
-      // очищаем локальное сообщение чтобы не дублировать
-      setChannelError(null);
     }
   }, [channelError]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (channelMessage) {
       toast('Готово', { description: channelMessage });
-      setChannelMessage(null);
     }
   }, [channelMessage]);
 
-  React.useEffect(() => {
-    getCurrentChannel()
-      .then((response) => {
-        if (response.data.channel && response.data.channel.username) {
-          const username = response.data.channel.username;
-          setChannelUsername(username);
-          setIsChannelSaved(true);
-          localStorage.setItem('lastUsedChannel', username);
-        } else {
-          const savedChannel = localStorage.getItem('lastUsedChannel');
-          if (savedChannel) {
-            setChannelUsername(savedChannel);
-            setIsChannelSaved(false);
-          }
-        }
-      })
-      .catch((err) => {
-        console.error('Failed to load saved channel:', err);
-        const savedChannel = localStorage.getItem('lastUsedChannel');
-        if (savedChannel) {
-          setChannelUsername(savedChannel);
-          setIsChannelSaved(false);
-        }
-      });
-  }, []);
-
-  const handleRun = () => {
+  const handleRun = useCallback(() => {
     if (validationError) return;
     const channelUrl = channelUsername.startsWith('@')
       ? `t.me/${channelUsername.slice(1)}`
       : `t.me/${channelUsername}`;
-    runPipeline(postLimit, periodHours, channelUrl, isTopPosts);
-  };
+    void runPipeline(postLimit, periodHours, channelUrl, isTopPosts);
+  }, [validationError, channelUsername, runPipeline, postLimit, periodHours, isTopPosts]);
 
-  const handleChannelSave = async (username: string) => {
-    if (!username.trim()) return;
-    try {
-      const response = await saveChannel(username);
-      if (response.data.ok) {
-        setIsChannelSaved(true);
-        setChannelError(null);
-        setChannelMessage('Канал сохранён');
-      }
-    } catch (err: any) {
-      console.error('Failed to save channel:', err);
-      setChannelMessage(null);
-      setChannelError('Ошибка при сохранении канала');
-    }
-  };
-
-  const handleChannelUnsave = async (username: string) => {
-    if (!username.trim()) return;
-    try {
-      const response = await deleteCurrentChannel();
-      if (response.data.ok) {
-        setIsChannelSaved(false);
-        setChannelError(null);
-        setChannelMessage('Канал удалён');
-      }
-    } catch (err: any) {
-      console.error('Failed to unsave channel:', err);
-      setChannelMessage(null);
-      setChannelError('Ошибка при удалении канала');
-    }
-  };
-
-  const handleChannelChange = async (username: string) => {
-    setChannelUsername(username);
-    if (username.trim()) {
-      localStorage.setItem('lastUsedChannel', username);
-    } else {
-      localStorage.removeItem('lastUsedChannel');
-    }
-    if (!username.trim()) {
-      setIsChannelSaved(false);
-      if (channelCheckRef.current) {
-        clearTimeout(channelCheckRef.current);
-        channelCheckRef.current = null;
-      }
-      return;
-    }
-    if (channelCheckRef.current) {
-      clearTimeout(channelCheckRef.current);
-      channelCheckRef.current = null;
-    }
-    channelCheckRef.current = setTimeout(async () => {
-      try {
-        const response = await checkChannel(username);
-        setIsChannelSaved(response.data.is_saved);
-      } catch (err) {
-        console.error('Failed to check channel:', err);
-        setIsChannelSaved(false);
-      }
-    }, 400);
-  };
-
-  React.useEffect(() => {
-    return () => {
-      if (channelCheckRef.current) {
-        clearTimeout(channelCheckRef.current);
-        channelCheckRef.current = null;
-      }
-    };
-  }, []);
-
-  React.useEffect(() => {
-    const prevIsRunning = prevIsRunningRef.current;
-    const currentIsRunning = status.is_running;
-    const hasProgress = status.total > 0;
-
-    if (currentIsRunning && !prevIsRunning && hasProgress) {
-      const id = 'pipeline-progress';
-      progressToastIdRef.current = id;
-      const pct =
-        status.total > 0
-          ? Math.max(0, Math.min(100, Math.round((status.processed / status.total) * 100)))
-          : 0;
-      toast(`${status.processed} из ${status.total} · ${pct}%`, {
-        id,
-        duration: Infinity,
-        description: <Progress value={pct} className='w-full h-2 mt-1' />,
-      });
-    }
-
-    if (currentIsRunning && hasProgress && progressToastIdRef.current) {
-      if (updateProgressTimeoutRef.current) {
-        clearTimeout(updateProgressTimeoutRef.current);
-      }
-
-      updateProgressTimeoutRef.current = setTimeout(() => {
-        if (progressToastIdRef.current) {
-          const id = progressToastIdRef.current;
-          const processed = status.processed;
-          const total = status.total;
-          const pct =
-            total > 0 ? Math.max(0, Math.min(100, Math.round((processed / total) * 100))) : 0;
-          toast(`${processed} из ${total} · ${pct}%`, {
-            id,
-            duration: Infinity,
-            description: <Progress value={pct} className='w-full h-2 mt-1' />,
-          });
-        }
-      }, 300);
-    }
-
-    if (currentIsRunning && hasProgress && !progressToastIdRef.current) {
-      const id = 'pipeline-progress';
-      progressToastIdRef.current = id;
-      const processed = status.processed;
-      const total = status.total;
-      const pct = total > 0 ? Math.max(0, Math.min(100, Math.round((processed / total) * 100))) : 0;
-      toast(`${processed} из ${total} · ${pct}%`, {
-        id,
-        duration: Infinity,
-        description: <Progress value={pct} className='w-full h-2 mt-1' />,
-      });
-    }
-
-    if (!currentIsRunning && prevIsRunning && progressToastIdRef.current) {
-      if (updateProgressTimeoutRef.current) {
-        clearTimeout(updateProgressTimeoutRef.current);
-        updateProgressTimeoutRef.current = null;
-      }
-
-      // Завершение — закрываем тост прогресса
-      const id = progressToastIdRef.current;
-      if (id) {
-        toast.dismiss(id);
-      }
-      progressToastIdRef.current = null;
-    }
-
-    prevIsRunningRef.current = currentIsRunning;
-
-    return () => {
-      if (updateProgressTimeoutRef.current) {
-        clearTimeout(updateProgressTimeoutRef.current);
-      }
-    };
-  }, [status.is_running, status.processed, status.total]);
+  const isRunButtonDisabled = useMemo(
+    () => !!validationError || isLoading,
+    [validationError, isLoading]
+  );
 
   return (
     <div className='min-h-screen bg-background'>
@@ -266,7 +100,7 @@ export default function Dashboard() {
                 <NumberInput
                   label='Количество постов'
                   value={postLimit}
-                  onValueChange={(value) => setPostLimitValue(value)}
+                  onValueChange={setPostLimitValue}
                   min={1}
                   max={1000}
                   disabled={status.is_running || isLoading}
@@ -302,7 +136,7 @@ export default function Dashboard() {
                     onRun={handleRun}
                     onStop={stopPipeline}
                     isRunning={status.is_running}
-                    disabled={!!validationError || isLoading}
+                    disabled={isRunButtonDisabled}
                     loading={isLoading}
                   />
                   <StatusIndicator
@@ -318,8 +152,6 @@ export default function Dashboard() {
             {validationError && (
               <p className='text-red-600 text-sm font-medium'>{validationError}</p>
             )}
-
-            {/* inline alerts заменены на тосты */}
           </CardContent>
         </Card>
       </div>

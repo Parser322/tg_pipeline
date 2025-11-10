@@ -5,6 +5,19 @@ import { API_CONFIG, MESSAGES } from '@/constants';
 import type { PipelineStatus } from '@/types/api';
 import { queryKeys } from '@/lib/queryKeys';
 
+type RunPipelineArgs = {
+  postLimit: number;
+  periodHours: number | null;
+  channelUrl: string | null;
+  isTopPosts: boolean;
+};
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  return 'Неизвестная ошибка';
+};
+
 export const usePipeline = () => {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
@@ -12,49 +25,42 @@ export const usePipeline = () => {
 
   const statusQuery = useQuery({
     queryKey: queryKeys.status,
-    queryFn: async () => {
-      const response = await pipelineAPI.status();
-      return response.data as PipelineStatus;
-    },
+    queryFn: ({ signal }) => pipelineAPI.status(signal),
     initialData: {
       processed: 0,
       total: 0,
       is_running: false,
       finished: false,
-    } as PipelineStatus,
-    refetchInterval: (q) =>
-      q.state.data?.is_running ? API_CONFIG.POLLING_INTERVAL : API_CONFIG.IDLE_POLLING_INTERVAL,
+    },
+    refetchInterval: (query) =>
+      query.state.data?.is_running ? API_CONFIG.POLLING_INTERVAL : API_CONFIG.IDLE_POLLING_INTERVAL,
     refetchOnWindowFocus: true,
     refetchIntervalInBackground: false,
     staleTime: 2_000,
   });
 
   const runMutation = useMutation({
-    mutationFn: (args: {
-      postLimit: number;
-      periodHours: number | null;
-      channelUrl: string | null;
-      isTopPosts: boolean;
-    }) => pipelineAPI.run(args.postLimit, args.periodHours, args.channelUrl, args.isTopPosts),
-    onSuccess: (res) => {
-      setSuccess(res.data.message || MESSAGES.SUCCESS.PIPELINE_STARTED);
+    mutationFn: (args: RunPipelineArgs) =>
+      pipelineAPI.run(args.postLimit, args.periodHours, args.channelUrl, args.isTopPosts),
+    onSuccess: (data) => {
+      setSuccess(data.message || MESSAGES.SUCCESS.PIPELINE_STARTED);
       setError(null);
-      queryClient.invalidateQueries({ queryKey: queryKeys.status });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.status });
     },
-    onError: (err: any) => {
-      setError((err as Error).message || MESSAGES.ERROR.PIPELINE_START);
+    onError: (err: unknown) => {
+      setError(getErrorMessage(err) || MESSAGES.ERROR.PIPELINE_START);
     },
   });
 
   const stopMutation = useMutation({
     mutationFn: () => pipelineAPI.stop(),
-    onSuccess: (res) => {
-      setSuccess(res.data.message || MESSAGES.SUCCESS.PIPELINE_STOPPED);
+    onSuccess: (data) => {
+      setSuccess(data.message || MESSAGES.SUCCESS.PIPELINE_STOPPED);
       setError(null);
-      queryClient.invalidateQueries({ queryKey: queryKeys.status });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.status });
     },
-    onError: (err: any) => {
-      setError((err as Error).message || MESSAGES.ERROR.PIPELINE_STOP);
+    onError: (err: unknown) => {
+      setError(getErrorMessage(err) || MESSAGES.ERROR.PIPELINE_STOP);
     },
   });
 
@@ -79,16 +85,16 @@ export const usePipeline = () => {
 
   useEffect(() => {
     if (error || success) {
-      const t = setTimeout(() => {
+      const timer = setTimeout(() => {
         setError(null);
         setSuccess(null);
       }, API_CONFIG.MESSAGE_TIMEOUT);
-      return () => clearTimeout(t);
+      return () => clearTimeout(timer);
     }
   }, [error, success]);
 
   return {
-    status: statusQuery.data as PipelineStatus,
+    status: statusQuery.data,
     isLoading: runMutation.isPending || stopMutation.isPending,
     error,
     success,

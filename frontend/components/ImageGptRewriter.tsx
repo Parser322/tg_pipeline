@@ -1,27 +1,27 @@
 'use client';
-import React from 'react';
+import { useState, useCallback, useEffect, type ChangeEvent } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { toast } from 'sonner';
 import { translationService } from '@/services/translation';
 
 export default function ImageGptRewriter() {
-  const [file, setFile] = React.useState<File | null>(null);
-  const [preview, setPreview] = React.useState<string | null>(null);
-  const [resultImage, setResultImage] = React.useState<string | null>(null);
-  const [isLoading, setIsLoading] = React.useState<boolean>(false);
-  const [error, setError] = React.useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [resultImage, setResultImage] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const onSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onSelect = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0] || null;
     if (!f) return;
     setFile(f);
     const reader = new FileReader();
     reader.onload = (ev) => setPreview(String(ev.target?.result || ''));
     reader.readAsDataURL(f);
-  };
+  }, []);
 
-  const run = async () => {
+  const run = useCallback(async () => {
     if (!file) return;
     setError(null);
     setIsLoading(true);
@@ -31,25 +31,36 @@ export default function ImageGptRewriter() {
     reader.onload = async (ev) => {
       try {
         const base64 = String(ev.target?.result || '').split(',')[1] || '';
-        const { imageBase64 } = await translationService.translateImageWithGpt(base64, { targetLanguage: 'English', size: '1024x1024' });
+        const { imageBase64 } = await translationService.translateImageWithGpt(base64, {
+          targetLanguage: 'English',
+          size: '1024x1024',
+        });
         setResultImage(`data:image/png;base64,${imageBase64}`);
-      } catch (err: any) {
-        setError((err as Error).message);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Unknown error');
       } finally {
         setIsLoading(false);
       }
     };
     reader.readAsDataURL(file);
-  };
+  }, [file]);
 
-  const clearAll = () => {
+  const clearAll = useCallback(() => {
     setFile(null);
     setPreview(null);
     setResultImage(null);
     setError(null);
-  };
+  }, []);
 
-  React.useEffect(() => {
+  const handleDownload = useCallback(() => {
+    if (!resultImage) return;
+    const a = document.createElement('a');
+    a.href = resultImage;
+    a.download = 'gpt-translated.png';
+    a.click();
+  }, [resultImage]);
+
+  useEffect(() => {
     if (error) {
       toast.error('Ошибка', { description: error, duration: 4000 });
     }
@@ -63,7 +74,12 @@ export default function ImageGptRewriter() {
         </CardTitle>
       </CardHeader>
       <CardContent className='space-y-4'>
-        <input type='file' accept='image/*' onChange={onSelect} aria-label='Выберите изображение для GPT-перевода' />
+        <input
+          type='file'
+          accept='image/*'
+          onChange={onSelect}
+          aria-label='Выберите изображение для GPT-перевода'
+        />
         {preview && (
           <div className='space-y-2'>
             <p className='text-sm text-gray-300'>Оригинал:</p>
@@ -72,33 +88,28 @@ export default function ImageGptRewriter() {
         )}
 
         <div className='flex gap-2'>
-          <Button onClick={run} disabled={!file || isLoading} aria-label='Перевести изображение с помощью GPT'>
+          <Button
+            onClick={run}
+            disabled={!file || isLoading}
+            aria-label='Перевести изображение с помощью GPT'
+          >
             {isLoading ? 'Processing...' : 'Translate with GPT'}
           </Button>
-          <Button onClick={clearAll} variant='outline' aria-label='Очистить форму'>Очистить</Button>
+          <Button onClick={clearAll} variant='outline' aria-label='Очистить форму'>
+            Очистить
+          </Button>
         </div>
 
         {resultImage && (
           <div className='space-y-2'>
             <p className='text-sm text-gray-300'>Результат (может немного отличаться):</p>
             <img src={resultImage} alt='result' className='max-w-full rounded border bg-white' />
-            <Button
-              variant='outline'
-              onClick={() => {
-                const a = document.createElement('a');
-                a.href = resultImage;
-                a.download = 'gpt-translated.png';
-                a.click();
-              }}
-              size='sm'
-            >Скачать</Button>
+            <Button variant='outline' onClick={handleDownload} size='sm'>
+              Скачать
+            </Button>
           </div>
         )}
-
       </CardContent>
     </Card>
   );
 }
-
-
-

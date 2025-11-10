@@ -1,26 +1,30 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import React from 'react';
 import { Home, Newspaper } from 'lucide-react';
+import { type ComponentType } from 'react';
+import { cn } from '@/lib/utils';
 
 type NavItemProps = {
   href: string;
   label: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: ComponentType<{ className?: string }>;
 };
 
 function NavItem({ href, label, icon: Icon }: NavItemProps) {
   const pathname = usePathname();
   const isActive = pathname === href;
-  const base = 'text-sm transition-colors flex items-center gap-2 rounded-md px-3 py-2';
-  const active = 'bg-accent text-foreground font-medium';
-  const inactive = 'text-muted-foreground hover:text-foreground hover:bg-accent/50';
+  
   return (
     <Link
       href={href}
       aria-current={isActive ? 'page' : undefined}
-      className={`${base} ${isActive ? active : inactive}`}
+      className={cn(
+        'text-sm transition-colors flex items-center gap-2 rounded-md px-3 py-2',
+        isActive
+          ? 'bg-accent text-foreground font-medium'
+          : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+      )}
     >
       <Icon className='h-4 w-4' />
       <span>{label}</span>

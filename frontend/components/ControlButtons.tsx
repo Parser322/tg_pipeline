@@ -1,6 +1,6 @@
-import React from 'react';
 import { Button } from './ui/button';
 import { Loader2, Play, Square } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 type ControlButtonsProps = {
   onRun: () => void;
@@ -10,14 +10,17 @@ type ControlButtonsProps = {
   loading?: boolean;
 };
 
-const ControlButtons = ({ onRun, onStop, isRunning, disabled, loading }: ControlButtonsProps) => {
+export const ControlButtons = ({ onRun, onStop, isRunning, disabled, loading }: ControlButtonsProps) => {
   if (loading) {
     return (
       <Button
         disabled
         size='icon'
         variant={isRunning ? 'destructive' : 'default'}
-        className={isRunning ? 'h-9 w-9' : 'h-9 w-9 bg-green-500 text-white hover:bg-green-600'}
+        className={cn(
+          'h-9 w-9',
+          !isRunning && 'bg-green-500 text-white hover:bg-green-600'
+        )}
         aria-label={isRunning ? 'Остановка...' : 'Запуск...'}
         title={isRunning ? 'Остановка...' : 'Запуск...'}
       >
@@ -25,6 +28,7 @@ const ControlButtons = ({ onRun, onStop, isRunning, disabled, loading }: Control
       </Button>
     );
   }
+
   if (isRunning) {
     return (
       <Button
@@ -54,8 +58,6 @@ const ControlButtons = ({ onRun, onStop, isRunning, disabled, loading }: Control
     </Button>
   );
 };
-
-export { ControlButtons };
 
 
 

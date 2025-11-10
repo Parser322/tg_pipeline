@@ -1,6 +1,6 @@
-import React from 'react';
 import { CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { UI_CONFIG } from '@/constants';
+import { useMemo } from 'react';
 
 type StatusIndicatorProps = {
   isRunning: boolean;
@@ -9,8 +9,8 @@ type StatusIndicatorProps = {
   total: number;
 };
 
-const StatusIndicator = ({ isRunning, finished, processed, total }: StatusIndicatorProps) => {
-  const getStatusIcon = () => {
+export default function StatusIndicator({ isRunning, finished, processed, total }: StatusIndicatorProps) {
+  const statusIcon = useMemo(() => {
     if (isRunning) {
       return <Loader2 className={`${UI_CONFIG.ICON_SIZE} animate-spin`} />;
     }
@@ -18,9 +18,9 @@ const StatusIndicator = ({ isRunning, finished, processed, total }: StatusIndica
       return <CheckCircle className={`${UI_CONFIG.ICON_SIZE} text-green-500`} />;
     }
     return <AlertCircle className={`${UI_CONFIG.ICON_SIZE} text-blue-500`} />;
-  };
+  }, [isRunning, finished]);
 
-  const getStatusText = () => {
+  const statusText = useMemo(() => {
     if (isRunning) {
       return `В процессе · ${processed}/${total}`;
     }
@@ -28,17 +28,15 @@ const StatusIndicator = ({ isRunning, finished, processed, total }: StatusIndica
       return `Завершено · ${processed}/${total}`;
     }
     return 'Готов';
-  };
+  }, [isRunning, finished, processed, total]);
 
   return (
     <div className='flex items-center gap-2 text-sm' role='status' aria-live='polite'>
-      {getStatusIcon()}
-      <span className='font-medium'>{getStatusText()}</span>
+      {statusIcon}
+      <span className='font-medium'>{statusText}</span>
     </div>
   );
-};
-
-export default StatusIndicator;
+}
 
 
 

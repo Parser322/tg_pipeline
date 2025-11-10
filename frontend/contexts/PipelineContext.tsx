@@ -1,5 +1,5 @@
 'use client';
-import React, { createContext, useContext, useMemo, type ReactNode } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 import { usePipeline } from '@/hooks/usePipeline';
 
 type PipelineContextValue = ReturnType<typeof usePipeline>;
@@ -8,8 +8,8 @@ const PipelineContext = createContext<PipelineContextValue | null>(null);
 
 export function PipelineProvider({ children }: { children: ReactNode }) {
   const pipeline = usePipeline();
-  const value = useMemo(() => pipeline, [pipeline]);
-  return <PipelineContext.Provider value={value}>{children}</PipelineContext.Provider>;
+  // Не используем useMemo, так как pipeline - объект из хука с мемоизированными функциями
+  return <PipelineContext.Provider value={pipeline}>{children}</PipelineContext.Provider>;
 }
 
 export function usePipelineContext(): PipelineContextValue {
