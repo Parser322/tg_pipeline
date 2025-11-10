@@ -55,11 +55,3 @@ export type GetPostsResponse = {
   ok: boolean;
   posts: Post[];
 };
-
-export type TranslateResult = {
-  translated_text: string;
-};
-
-export type ImageTranslateResult = {
-  imageBase64: string;
-};
