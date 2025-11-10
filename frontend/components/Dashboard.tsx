@@ -2,21 +2,19 @@
 import React from 'react';
 import { usePipelineContext } from '@/contexts/PipelineContext';
 import { usePostLimit } from '@/hooks/usePostLimit';
-import { useToast } from '@/contexts/ToastContext';
 import { saveChannel, checkChannel, deleteCurrentChannel, getCurrentChannel } from '@/services/api';
 import StatusIndicator from './StatusIndicator';
 import { ControlButtons } from './ControlButtons';
-import { MessageAlerts } from './MessageAlerts';
 import { Card, CardContent } from './ui/card';
 import { NumberInput } from './ui/number-input';
 import { Switch } from './ui/switch';
 import { ChannelInput } from './ui/channel-input';
-import { Alert, AlertDescription } from './ui/alert';
+import { toast } from 'sonner';
+import { Progress } from './ui/progress';
 
 export default function Dashboard() {
   const { status, error, success, runPipeline, stopPipeline, isLoading } = usePipelineContext();
   const { postLimit, validationError, setPostLimitValue } = usePostLimit();
-  const { showToast, updateToast, dismissToast } = useToast();
   const [periodHours, setPeriodHours] = React.useState<number>(1);
   const [channelUsername, setChannelUsername] = React.useState<string>('');
   const [isChannelSaved, setIsChannelSaved] = React.useState<boolean>(false);
@@ -27,6 +25,36 @@ export default function Dashboard() {
   const progressToastIdRef = React.useRef<string | null>(null);
   const prevIsRunningRef = React.useRef(status.is_running);
   const updateProgressTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Notifications for pipeline success/error
+  React.useEffect(() => {
+    if (error) {
+      toast.error('Ошибка', { description: error });
+    }
+  }, [error]);
+
+  // Нейтральная нотификация об успешном запуске/остановке (без зеленого цвета)
+  React.useEffect(() => {
+    if (success) {
+      toast(success);
+    }
+  }, [success]);
+
+  // Notifications for channel actions
+  React.useEffect(() => {
+    if (channelError) {
+      toast.error('Ошибка канала', { description: channelError });
+      // очищаем локальное сообщение чтобы не дублировать
+      setChannelError(null);
+    }
+  }, [channelError]);
+
+  React.useEffect(() => {
+    if (channelMessage) {
+      toast('Готово', { description: channelMessage });
+      setChannelMessage(null);
+    }
+  }, [channelMessage]);
 
   React.useEffect(() => {
     getCurrentChannel()
@@ -139,15 +167,17 @@ export default function Dashboard() {
     const hasProgress = status.total > 0;
 
     if (currentIsRunning && !prevIsRunning && hasProgress) {
-      const toastId = showToast({
-        title: 'Загрузка',
-        progress: {
-          processed: status.processed,
-          total: status.total,
-        },
-        duration: 0,
+      const id = 'pipeline-progress';
+      progressToastIdRef.current = id;
+      const pct =
+        status.total > 0
+          ? Math.max(0, Math.min(100, Math.round((status.processed / status.total) * 100)))
+          : 0;
+      toast(`${status.processed} из ${status.total} · ${pct}%`, {
+        id,
+        duration: Infinity,
+        description: <Progress value={pct} className='w-full h-2 mt-1' />,
       });
-      progressToastIdRef.current = toastId;
     }
 
     if (currentIsRunning && hasProgress && progressToastIdRef.current) {
@@ -157,28 +187,31 @@ export default function Dashboard() {
 
       updateProgressTimeoutRef.current = setTimeout(() => {
         if (progressToastIdRef.current) {
-          updateToast(progressToastIdRef.current, {
-            title: 'Загрузка',
-            progress: {
-              processed: status.processed,
-              total: status.total,
-            },
-            duration: 0,
+          const id = progressToastIdRef.current;
+          const processed = status.processed;
+          const total = status.total;
+          const pct =
+            total > 0 ? Math.max(0, Math.min(100, Math.round((processed / total) * 100))) : 0;
+          toast(`${processed} из ${total} · ${pct}%`, {
+            id,
+            duration: Infinity,
+            description: <Progress value={pct} className='w-full h-2 mt-1' />,
           });
         }
       }, 300);
     }
 
     if (currentIsRunning && hasProgress && !progressToastIdRef.current) {
-      const toastId = showToast({
-        title: 'Загрузка',
-        progress: {
-          processed: status.processed,
-          total: status.total,
-        },
-        duration: 0,
+      const id = 'pipeline-progress';
+      progressToastIdRef.current = id;
+      const processed = status.processed;
+      const total = status.total;
+      const pct = total > 0 ? Math.max(0, Math.min(100, Math.round((processed / total) * 100))) : 0;
+      toast(`${processed} из ${total} · ${pct}%`, {
+        id,
+        duration: Infinity,
+        description: <Progress value={pct} className='w-full h-2 mt-1' />,
       });
-      progressToastIdRef.current = toastId;
     }
 
     if (!currentIsRunning && prevIsRunning && progressToastIdRef.current) {
@@ -187,9 +220,11 @@ export default function Dashboard() {
         updateProgressTimeoutRef.current = null;
       }
 
-      updateToast(progressToastIdRef.current, {
-        duration: 2000,
-      });
+      // Завершение — закрываем тост прогресса
+      const id = progressToastIdRef.current;
+      if (id) {
+        toast.dismiss(id);
+      }
       progressToastIdRef.current = null;
     }
 
@@ -200,7 +235,7 @@ export default function Dashboard() {
         clearTimeout(updateProgressTimeoutRef.current);
       }
     };
-  }, [status.is_running, status.processed, status.total, showToast, updateToast]);
+  }, [status.is_running, status.processed, status.total]);
 
   return (
     <div className='min-h-screen bg-background'>
@@ -284,17 +319,7 @@ export default function Dashboard() {
               <p className='text-red-600 text-sm font-medium'>{validationError}</p>
             )}
 
-            <MessageAlerts error={error} success={success} />
-            {channelError && (
-              <Alert className='border-red-200 bg-red-50 mt-2'>
-                <AlertDescription className='text-red-700'>{channelError}</AlertDescription>
-              </Alert>
-            )}
-            {channelMessage && (
-              <Alert className='border-green-200 bg-green-50 mt-2'>
-                <AlertDescription className='text-green-700'>{channelMessage}</AlertDescription>
-              </Alert>
-            )}
+            {/* inline alerts заменены на тосты */}
           </CardContent>
         </Card>
       </div>

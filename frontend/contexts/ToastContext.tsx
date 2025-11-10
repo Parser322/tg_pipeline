@@ -7,6 +7,8 @@ export interface ToastData {
   id: string;
   title?: string;
   description?: string;
+  variant?: 'default' | 'destructive';
+  scope?: string; // e.g., 'notifications' | 'default'
   progress?: {
     processed: number;
     total: number;
@@ -29,7 +31,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const showToast = useCallback((toast: Omit<ToastData, 'id'>) => {
     const id = Math.random().toString(36).substring(2, 9);
-    const newToast: ToastData = { ...toast, id };
+    const newToast: ToastData = { scope: 'default', variant: 'default', ...toast, id };
 
     setToasts((prev) => [...prev, newToast]);
 
@@ -82,7 +84,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={{ toasts, showToast, updateToast, dismissToast }}>
       {children}
-      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+      {/* notifications scope: fixed bottom-right */}
+      <ToastContainer
+        toasts={toasts.filter((t) => (t.scope ?? 'default') === 'notifications')}
+        onDismiss={dismissToast}
+        positionClass='fixed bottom-4 right-4'
+      />
+      {/* default scope (progress/прочее): slightly above notifications to avoid overlap */}
+      <ToastContainer
+        toasts={toasts.filter((t) => (t.scope ?? 'default') !== 'notifications')}
+        onDismiss={dismissToast}
+        positionClass='fixed bottom-28 right-4'
+      />
     </ToastContext.Provider>
   );
 }
@@ -90,23 +103,26 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 function ToastContainer({
   toasts,
   onDismiss,
+  positionClass,
 }: {
   toasts: ToastData[];
   onDismiss: (id: string) => void;
+  positionClass?: string;
 }) {
   if (toasts.length === 0) return null;
 
   return (
-    <div className='fixed bottom-4 right-4 z-[100] flex flex-col-reverse gap-2 w-full max-w-[420px] pointer-events-none'>
+    <div className={`${positionClass ?? 'fixed bottom-4 right-4'} z-[100] flex flex-col-reverse gap-2 w-full max-w-[420px] pointer-events-none`}>
       {toasts.map((toast) => {
         const progress = toast.progress
           ? (toast.progress.processed / toast.progress.total) * 100
           : undefined;
 
         return (
-          <Toast key={toast.id} onClose={() => onDismiss(toast.id)} className='pointer-events-auto'>
+          <Toast key={toast.id} onClose={() => onDismiss(toast.id)} className='pointer-events-auto' variant={toast.variant}>
             <div className='w-full space-y-2'>
               {toast.title && <ToastTitle>{toast.title}</ToastTitle>}
+              {toast.description && <ToastDescription>{toast.description}</ToastDescription>}
               {toast.progress && (
                 <div className='space-y-1'>
                   <div className='flex justify-between text-xs text-muted-foreground'>

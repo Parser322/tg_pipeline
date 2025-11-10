@@ -1,10 +1,10 @@
 'use client';
 import { PipelineProvider } from '@/contexts/PipelineContext';
-import { ToastProvider } from '@/contexts/ToastContext';
 import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { useState } from 'react';
+import { Toaster } from 'sonner';
 
 export default function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(
@@ -21,9 +21,17 @@ export default function Providers({ children }: { children: ReactNode }) {
   );
   return (
     <QueryClientProvider client={queryClient}>
-      <PipelineProvider>
-        <ToastProvider>{children}</ToastProvider>
-      </PipelineProvider>
+      <PipelineProvider>{children}</PipelineProvider>
+      <Toaster
+        position='bottom-right'
+        duration={5000}
+        visibleToasts={3}
+        closeButton
+        toastOptions={{
+          className: 'w-[380px]',
+          descriptionClassName: 'block w-full col-span-full',
+        }}
+      />
       {process.env.NODE_ENV !== 'production' ? (
         <ReactQueryDevtools initialIsOpen={false} />
       ) : null}

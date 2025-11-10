@@ -6,7 +6,7 @@ import { usePipelineContext } from '@/contexts/PipelineContext';
 import PostCard from './PostCard';
 import { Button } from './ui/button';
 import { Trash2 } from 'lucide-react';
-import { Alert, AlertDescription } from './ui/alert';
+import { toast } from 'sonner';
 
 const PostsList = () => {
   const {
@@ -29,12 +29,20 @@ const PostsList = () => {
     prevFinishedRef.current = status.finished;
   }, [status.finished, fetchPosts]);
 
+  useEffect(() => {
+    if (error) {
+      toast.error('Ошибка', { description: error, duration: 4000 });
+    }
+  }, [error]);
+
+  useEffect(() => {
+    if (message) {
+      toast.success(message, { duration: 2500 });
+    }
+  }, [message]);
+
   if (isLoading) {
     return <p className='text-sm text-muted-foreground'>Загрузка постов...</p>;
-  }
-
-  if (error) {
-    return <p className='text-sm text-red-600 font-medium'>Ошибка: {error}</p>;
   }
 
   const handleDeleteAllClick = () => {
@@ -64,11 +72,6 @@ const PostsList = () => {
           </Button>
         )}
       </div>
-      {message && (
-        <Alert className='mb-3 border-green-200 bg-green-50'>
-          <AlertDescription className='text-green-700'>{message}</AlertDescription>
-        </Alert>
-      )}
       {posts.length === 0 ? (
         <p className='text-sm text-muted-foreground'>Постов пока нет</p>
       ) : (

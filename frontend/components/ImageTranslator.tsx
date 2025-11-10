@@ -2,7 +2,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
-import { Alert } from './ui/alert';
+import { toast } from 'sonner';
 
 type ImageTranslatorProps = {
   translateText: (text: string) => Promise<string>;
@@ -95,6 +95,12 @@ export default function ImageTranslator({ translateText }: ImageTranslatorProps)
     if (preview) img.src = preview;
   };
 
+  React.useEffect(() => {
+    if (error) {
+      toast.error('Ошибка', { description: error, duration: 4000 });
+    }
+  }, [error]);
+
   return (
     <Card className='shadow-2xl bg-black/80 backdrop-blur-sm border-gray-800'>
       <CardHeader>
@@ -131,11 +137,6 @@ export default function ImageTranslator({ translateText }: ImageTranslatorProps)
               }}
             >Скачать</Button>
           </div>
-        )}
-        {error && (
-          <Alert variant='destructive'>
-            <p>{error}</p>
-          </Alert>
         )}
       </CardContent>
     </Card>
