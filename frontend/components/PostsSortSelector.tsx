@@ -1,6 +1,7 @@
 'use client';
 
 import type { SortBy } from '@/types/api';
+import { Clock, Calendar } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -15,24 +16,35 @@ interface PostsSortSelectorProps {
 }
 
 const SORT_OPTIONS = {
-  saved_at: 'Последние загруженные',
-  original_date: 'По времени публикации',
+  saved_at: { label: 'Последние загруженные', icon: Clock },
+  original_date: { label: 'По времени публикации', icon: Calendar },
 } as const;
 
 export default function PostsSortSelector({ sortBy, onSortChange }: PostsSortSelectorProps) {
+  const CurrentIcon = SORT_OPTIONS[sortBy].icon;
+
   return (
-    <div className='flex items-center gap-2'>
-      <span className='text-sm text-muted-foreground hidden sm:inline'>Сортировка:</span>
-      <Select value={sortBy} onValueChange={(value) => onSortChange(value as SortBy)}>
-        <SelectTrigger className='w-[200px] bg-background'>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value='saved_at'>{SORT_OPTIONS.saved_at}</SelectItem>
-          <SelectItem value='original_date'>{SORT_OPTIONS.original_date}</SelectItem>
-        </SelectContent>
-      </Select>
-    </div>
+    <Select value={sortBy} onValueChange={(value) => onSortChange(value as SortBy)}>
+      <SelectTrigger className='w-[248px] bg-background'>
+        <div className='flex items-center gap-2 mr-2'>
+          <CurrentIcon className='w-4 h-4' />
+          <span>{SORT_OPTIONS[sortBy].label}</span>
+        </div>
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value='saved_at'>
+          <div className='flex items-center gap-2'>
+            <Clock className='w-4 h-4' />
+            <span>{SORT_OPTIONS.saved_at.label}</span>
+          </div>
+        </SelectItem>
+        <SelectItem value='original_date'>
+          <div className='flex items-center gap-2'>
+            <Calendar className='w-4 h-4' />
+            <span>{SORT_OPTIONS.original_date.label}</span>
+          </div>
+        </SelectItem>
+      </SelectContent>
+    </Select>
   );
 }
-
