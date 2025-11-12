@@ -1,5 +1,5 @@
 /**
- * Форматирует дату в удобочитаемый формат на русском языке
+ * Форматирует дату в формат dd.mm.yy, hh:mm
  * @param dateString - ISO строка даты
  * @returns Форматированная дата или null если дата невалидна
  */
@@ -12,30 +12,13 @@ export function formatPostDate(dateString?: string | null): string | null {
     // Проверка на валидность даты
     if (isNaN(date.getTime())) return null;
     
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = String(date.getFullYear()).slice(-2);
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
     
-    // Только что / минуты назад
-    if (diffMins < 1) return 'только что';
-    if (diffMins < 60) return `${diffMins} мин. назад`;
-    
-    // Часы назад
-    if (diffHours < 24) return `${diffHours} ч. назад`;
-    
-    // Дни назад (до 7 дней)
-    if (diffDays < 7) return `${diffDays} дн. назад`;
-    
-    // Полная дата для более старых постов
-    return date.toLocaleDateString('ru-RU', {
-      day: 'numeric',
-      month: 'short',
-      year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return `${day}.${month}.${year}, ${hours}:${minutes}`;
   } catch (error) {
     console.error('Error formatting date:', error);
     return null;

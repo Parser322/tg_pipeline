@@ -16,7 +16,18 @@ import {
 } from './ui/alert-dialog';
 import { OversizedMediaPlaceholder } from './OversizedMediaPlaceholder';
 import type { Post, MediaItem } from '@/types/api';
-import { Eye, Star, Languages, Trash2, MessageSquare, Sparkles, Smile, ChevronDown, Calendar } from 'lucide-react';
+import {
+  Eye,
+  Star,
+  Languages,
+  Trash2,
+  MessageSquare,
+  Sparkles,
+  Smile,
+  ChevronDown,
+  Send,
+  Download,
+} from 'lucide-react';
 import { formatPostDate } from '@/lib/dateUtils';
 
 type PostCardProps = {
@@ -29,7 +40,13 @@ function isVideoMedia(m: MediaItem): boolean {
   if (m.media_type === 'video') return true;
   if ((m.mime_type || '').toLowerCase().startsWith('video/')) return true;
   const url = (m.url || '').toLowerCase();
-  return url.endsWith('.mp4') || url.endsWith('.mov') || url.endsWith('.mkv') || url.endsWith('.webm') || url.endsWith('.m4v');
+  return (
+    url.endsWith('.mp4') ||
+    url.endsWith('.mov') ||
+    url.endsWith('.mkv') ||
+    url.endsWith('.webm') ||
+    url.endsWith('.m4v')
+  );
 }
 
 function isGifMedia(m: MediaItem): boolean {
@@ -41,7 +58,7 @@ export default function PostCard({ post, onTranslate, onDelete }: PostCardProps)
   const [activeTab, setActiveTab] = useState<'original' | 'translated'>('original');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
-  
+
   const firstMedia = useMemo(
     () => (post.media && post.media.length > 0 ? post.media[0] : undefined),
     [post.media]
@@ -60,14 +77,19 @@ export default function PostCard({ post, onTranslate, onDelete }: PostCardProps)
     onTranslate(post.id, 'EN');
   }, [post.id, onTranslate]);
 
-  const formattedDate = useMemo(() => formatPostDate(post.original_date), [post.original_date]);
+  const formattedOriginalDate = useMemo(
+    () => formatPostDate(post.original_date),
+    [post.original_date]
+  );
+  const formattedSavedDate = useMemo(() => formatPostDate(post.saved_at), [post.saved_at]);
 
   // Формируем информацию о канале: название и ссылку
   const channelDisplay = useMemo(() => {
     const title = post.channel_title || post.source_channel;
-    const username = post.channel_username || post.source_channel.replace('@', '').replace('t.me/', '');
+    const username =
+      post.channel_username || post.source_channel.replace('@', '').replace('t.me/', '');
     const channelUrl = `https://t.me/${username}`;
-    
+
     return { title, channelUrl };
   }, [post.channel_title, post.channel_username, post.source_channel]);
 
@@ -77,9 +99,8 @@ export default function PostCard({ post, onTranslate, onDelete }: PostCardProps)
         <div className='flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3'>
           <div className='flex-1 min-w-0'>
             <p className='text-sm font-semibold truncate'>
-              {channelDisplay.title}
-              {' '}
-              <a 
+              {channelDisplay.title}{' '}
+              <a
                 href={channelDisplay.channelUrl}
                 target='_blank'
                 rel='noopener noreferrer'
@@ -88,16 +109,24 @@ export default function PostCard({ post, onTranslate, onDelete }: PostCardProps)
                 ({channelDisplay.channelUrl})
               </a>
             </p>
-            <div className='flex items-center gap-2 mt-0.5'>
-              <p className='text-xs text-muted-foreground'>ID: {post.original_message_id}</p>
-              {formattedDate && (
-                <>
-                  <span className='text-xs text-muted-foreground'>•</span>
-                  <div className='flex items-center gap-1 text-xs text-muted-foreground'>
-                    <Calendar className='h-3 w-3' />
-                    <span>{formattedDate}</span>
-                  </div>
-                </>
+            <div className='flex flex-col gap-0 mt-0.5'>
+              {formattedOriginalDate && (
+                <div
+                  className='flex items-center gap-1 text-xs text-muted-foreground'
+                  title='Дата публикации'
+                >
+                  <Send className='h-3 w-3' />
+                  <span>{formattedOriginalDate}</span>
+                </div>
+              )}
+              {formattedSavedDate && (
+                <div
+                  className='flex items-center gap-1 text-xs text-muted-foreground'
+                  title='Дата сохранения'
+                >
+                  <Download className='h-3 w-3' />
+                  <span>{formattedSavedDate}</span>
+                </div>
               )}
             </div>
           </div>
@@ -118,7 +147,7 @@ export default function PostCard({ post, onTranslate, onDelete }: PostCardProps)
               <OversizedMediaPlaceholder
                 mediaId={firstMedia.id}
                 postId={post.id}
-                mediaType={firstMedia.media_type as "image" | "video" | "gif"}
+                mediaType={firstMedia.media_type as 'image' | 'video' | 'gif'}
                 fileSizeBytes={firstMedia.file_size_bytes || 0}
                 onLoad={handleMediaLoad}
               />
@@ -173,8 +202,8 @@ export default function PostCard({ post, onTranslate, onDelete }: PostCardProps)
           </div>
           <div className='text-sm text-muted-foreground whitespace-pre-wrap bg-muted p-3 rounded-md h-40 overflow-y-auto pr-1'>
             {activeTab === 'original'
-              ? (post.content || 'Нет текста')
-              : (post.translated_content || 'Нет перевода')}
+              ? post.content || 'Нет текста'
+              : post.translated_content || 'Нет перевода'}
           </div>
         </div>
         <div className='flex flex-wrap items-center gap-1 sm:gap-2'>

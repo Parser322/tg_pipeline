@@ -498,6 +498,11 @@ def get_all_posts_with_media(sort_by: str = "original_date") -> List[Dict[str, A
             "height": row.get("height"),
             "duration": row.get("duration"),
             "order_index": row.get("order_index"),
+            "file_size_bytes": row.get("file_size_bytes"),
+            "is_oversized": row.get("is_oversized"),
+            "is_loaded": row.get("is_loaded"),
+            "telegram_message_id": row.get("telegram_message_id"),
+            "telegram_channel": row.get("telegram_channel"),
         })
 
     for p in posts:

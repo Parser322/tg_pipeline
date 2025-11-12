@@ -47,6 +47,7 @@ export type Post = {
   channel_username?: string | null;
   original_message_id: number | string;
   original_date?: string | null;
+  saved_at?: string | null;
   original_views?: number | null;
   original_likes?: number | null;
   original_comments?: number | null;
