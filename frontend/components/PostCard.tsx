@@ -113,18 +113,20 @@ export default function PostCard({ post, onTranslate, onDelete }: PostCardProps)
                 <div
                   className='flex items-center gap-1 text-xs text-muted-foreground'
                   title='Дата публикации'
+                  suppressHydrationWarning
                 >
                   <Send className='h-3 w-3' />
-                  <span>{formattedOriginalDate}</span>
+                  <span suppressHydrationWarning>{formattedOriginalDate}</span>
                 </div>
               )}
               {formattedSavedDate && (
                 <div
                   className='flex items-center gap-1 text-xs text-muted-foreground'
                   title='Дата сохранения'
+                  suppressHydrationWarning
                 >
                   <Download className='h-3 w-3' />
-                  <span>{formattedSavedDate}</span>
+                  <span suppressHydrationWarning>{formattedSavedDate}</span>
                 </div>
               )}
             </div>

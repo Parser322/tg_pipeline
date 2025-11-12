@@ -358,7 +358,7 @@ export function TelegramCredentialsManager() {
                   </p>
                 )}
                 {credentialsQuery.data?.created_at && (
-                  <p className='text-sm text-gray-500'>
+                  <p className='text-sm text-gray-500' suppressHydrationWarning>
                     Добавлено: {new Date(credentialsQuery.data.created_at).toLocaleString('ru-RU')}
                   </p>
                 )}
