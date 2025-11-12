@@ -7,6 +7,16 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Alert } from './ui/alert';
 import { Badge } from './ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 import { toast } from 'sonner';
 import {
   getUserTelegramCredentials,
@@ -50,6 +60,9 @@ export function TelegramCredentialsManager() {
   // Countdown timer
   const [countdown, setCountdown] = useState<number>(0);
   const [resendCooldown, setResendCooldown] = useState<number>(0);
+
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
 
   // Загружаем текущие credentials
   const credentialsQuery = useQuery<UserTelegramCredentialsResponse, Error>({
@@ -281,9 +294,12 @@ export function TelegramCredentialsManager() {
   };
 
   const handleDelete = () => {
-    if (confirm('Вы уверены, что хотите удалить свои Telegram credentials?')) {
-      deleteMutation.mutate();
-    }
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    deleteMutation.mutate();
+    setDeleteDialogOpen(false);
   };
 
   const handleValidate = () => {
@@ -291,9 +307,12 @@ export function TelegramCredentialsManager() {
   };
 
   const handleCancel = () => {
-    if (confirm('Отменить авторизацию? Весь прогресс будет потерян.')) {
-      resetForm();
-    }
+    setCancelDialogOpen(true);
+  };
+
+  const handleCancelConfirm = () => {
+    resetForm();
+    setCancelDialogOpen(false);
   };
 
   const hasCredentials = credentialsQuery.data?.has_credentials ?? false;
@@ -571,6 +590,37 @@ export function TelegramCredentialsManager() {
             </Alert>
           </div>
         )}
+
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Удалить Telegram credentials?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Вы уверены, что хотите удалить свои Telegram credentials? Это действие нельзя
+                отменить.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Отмена</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteConfirm}>Удалить</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Отменить авторизацию?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Весь прогресс авторизации будет потерян. Вы уверены, что хотите отменить?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Продолжить авторизацию</AlertDialogCancel>
+              <AlertDialogAction onClick={handleCancelConfirm}>Отменить</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </CardContent>
     </Card>
   );

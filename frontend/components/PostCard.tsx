@@ -99,18 +99,16 @@ export default function PostCard({ post, onTranslate, onDelete }: PostCardProps)
       <CardContent className='p-4 space-y-3'>
         <div className='flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3'>
           <div className='flex-1 min-w-0'>
-            <p className='text-sm font-semibold truncate'>
-              {channelDisplay.title}{' '}
-              <a
-                href={channelDisplay.postUrl}
-                target='_blank'
-                rel='noopener noreferrer'
-                className='text-xs text-muted-foreground hover:text-primary transition-colors'
-              >
-                {channelDisplay.displayUrl}
-              </a>
-            </p>
-            <div className='flex flex-col gap-0 mt-0.5'>
+            <p className='text-sm font-semibold truncate'>{channelDisplay.title}</p>
+            <a
+              href={channelDisplay.postUrl}
+              target='_blank'
+              rel='noopener noreferrer'
+              className='text-xs text-muted-foreground hover:text-primary transition-colors inline-block'
+            >
+              {channelDisplay.displayUrl}
+            </a>
+            <div className='flex flex-col gap-0 mt-1'>
               {formattedOriginalDate && (
                 <div
                   className='flex items-center gap-1 text-xs text-muted-foreground'

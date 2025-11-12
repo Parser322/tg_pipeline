@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { TelegramCredentialsManager } from '@/components/TelegramCredentialsManager';
+import { SocialIcon } from '@/components/ui/social-icons';
 import { cn } from '@/lib/utils';
 
 // Типы для будущих соц сетей
@@ -12,7 +13,6 @@ type SettingsSection = {
   id: SocialNetwork;
   label: string;
   description: string;
-  icon: string;
   component: React.ComponentType;
   enabled: boolean;
 };
@@ -23,7 +23,6 @@ const SETTINGS_SECTIONS: SettingsSection[] = [
     id: 'telegram',
     label: 'Telegram',
     description: 'Настройка API credentials для парсинга Telegram каналов',
-    icon: '📱',
     component: TelegramCredentialsManager,
     enabled: true,
   },
@@ -32,7 +31,6 @@ const SETTINGS_SECTIONS: SettingsSection[] = [
   //   id: 'vk',
   //   label: 'ВКонтакте',
   //   description: 'Настройка API credentials для парсинга VK групп',
-  //   icon: '🔵',
   //   component: VKCredentialsManager,
   //   enabled: false,
   // },
@@ -40,7 +38,6 @@ const SETTINGS_SECTIONS: SettingsSection[] = [
   //   id: 'instagram',
   //   label: 'Instagram',
   //   description: 'Настройка API credentials для парсинга Instagram',
-  //   icon: '📷',
   //   component: InstagramCredentialsManager,
   //   enabled: false,
   // },
@@ -82,7 +79,7 @@ export default function SettingsPage() {
                           : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
                       )}
                     >
-                      <span className='text-xl'>{section.icon}</span>
+                      <SocialIcon type={section.id} size={20} />
                       <span>{section.label}</span>
                     </button>
                   ))}
@@ -95,11 +92,7 @@ export default function SettingsPage() {
                   </p>
                   <div className='space-y-1'>
                     <div className='flex items-center gap-3 px-3 py-2.5 text-sm text-muted-foreground/50'>
-                      <span className='text-xl'>🔵</span>
-                      <span>ВКонтакте</span>
-                    </div>
-                    <div className='flex items-center gap-3 px-3 py-2.5 text-sm text-muted-foreground/50'>
-                      <span className='text-xl'>📷</span>
+                      <SocialIcon type='instagram' size={20} className='opacity-50' />
                       <span>Instagram</span>
                     </div>
                   </div>
@@ -115,7 +108,7 @@ export default function SettingsPage() {
                 {/* Описание секции */}
                 <div className='mb-4'>
                   <h2 className='text-xl font-semibold flex items-center gap-2'>
-                    <span className='text-2xl'>{currentSection.icon}</span>
+                    <SocialIcon type={currentSection.id} size={24} />
                     {currentSection.label}
                   </h2>
                   <p className='text-sm text-muted-foreground mt-1'>
