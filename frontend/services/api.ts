@@ -13,9 +13,16 @@ class PipelineAPI {
     limit = 100,
     period_hours: number | null = null,
     channel_url: string | null = null,
-    is_top_posts = false
+    is_top_posts = false,
+    use_user_credentials = false
   ): Promise<OkResponse> {
-    return apiClient.post('/run', { limit, period_hours, channel_url, is_top_posts });
+    return apiClient.post('/run', {
+      limit,
+      period_hours,
+      channel_url,
+      is_top_posts,
+      use_user_credentials,
+    });
   }
 
   stop(): Promise<OkResponse> {
@@ -37,15 +44,15 @@ export const translateText = (
   return apiClient.post('/translate', { text, target_lang, prompt });
 };
 
-export const getPosts = (signal?: AbortSignal, sortBy: SortBy = 'original_date'): Promise<GetPostsResponse> => {
+export const getPosts = (
+  signal?: AbortSignal,
+  sortBy: SortBy = 'original_date'
+): Promise<GetPostsResponse> => {
   const params = new URLSearchParams({ sort_by: sortBy });
   return apiClient.get(`/posts?${params.toString()}`, signal);
 };
 
-export const translatePost = (
-  postId: string,
-  target_lang = 'EN'
-): Promise<OkResponse> =>
+export const translatePost = (postId: string, target_lang = 'EN'): Promise<OkResponse> =>
   apiClient.post(`/posts/${postId}/translate`, { target_lang });
 
 export const deletePost = (postId: string): Promise<OkResponse> =>
@@ -56,9 +63,8 @@ export const deleteAllPosts = (): Promise<OkResponse> => apiClient.delete('/post
 export const saveChannel = (username: string): Promise<OkResponse> =>
   apiClient.post('/channels', { username });
 
-export const getCurrentChannel = (
-  signal?: AbortSignal
-): Promise<CurrentChannelResponse> => apiClient.get('/channels/current', signal);
+export const getCurrentChannel = (signal?: AbortSignal): Promise<CurrentChannelResponse> =>
+  apiClient.get('/channels/current', signal);
 
 export const checkChannel = (
   username: string,
@@ -77,8 +83,7 @@ export const loadLargeMedia = (
 // User Telegram Credentials API
 export const saveTelegramCredentials = (
   credentials: import('@/types/api').TelegramCredentials
-): Promise<OkResponse> =>
-  apiClient.post('/user/telegram-credentials', credentials);
+): Promise<OkResponse> => apiClient.post('/user/telegram-credentials', credentials);
 
 export const getUserTelegramCredentials = (
   signal?: AbortSignal
@@ -88,5 +93,22 @@ export const getUserTelegramCredentials = (
 export const deleteUserTelegramCredentials = (): Promise<OkResponse> =>
   apiClient.delete('/user/telegram-credentials');
 
-export const validateTelegramCredentials = (): Promise<import('@/types/api').ValidateCredentialsResponse> =>
-  apiClient.post('/user/telegram-credentials/validate');
+export const validateTelegramCredentials = (): Promise<
+  import('@/types/api').ValidateCredentialsResponse
+> => apiClient.post('/user/telegram-credentials/validate');
+
+// 2FA Authorization API
+export const sendTelegramCode = (
+  credentials: import('@/types/api').SendCodeRequest
+): Promise<import('@/types/api').SendCodeResponse> =>
+  apiClient.post('/user/telegram-credentials/send-code', credentials);
+
+export const verifyTelegramCode = (
+  verification: import('@/types/api').VerifyCodeRequest
+): Promise<import('@/types/api').VerifyCodeResponse> =>
+  apiClient.post('/user/telegram-credentials/verify-code', verification);
+
+export const verifyTelegramPassword = (
+  verification: import('@/types/api').VerifyPasswordRequest
+): Promise<import('@/types/api').VerifyPasswordResponse> =>
+  apiClient.post('/user/telegram-credentials/verify-password', verification);

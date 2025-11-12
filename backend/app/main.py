@@ -565,109 +565,118 @@ async def process_channel(client: TelegramClient, ch: str, limit: int):
     for group in selected_units:
         # На каждой итерации даём возможность циклу событий обработать отмену
         await asyncio.sleep(0)
-
-        # Стабильный порядок внутри группы
-        group = sorted(group, key=lambda x: (x.date, x.id))
-
-        # Подпись — первая непустая среди группы
-        caption = ""
-        for gm in group:
-            t = (gm.message or "").strip()
-            if t:
-                caption = t
-                break
-
-        # Скачиваем и брендируем все медиа из группы
-        media_results = []
-        print(f"Processing post {root_msg.id}: downloading media from {len(group)} message(s)...")
-        for gm in group:
-            results = await download_and_brand(client, gm)
-            media_results.extend(results)
         
-        # Разделяем обычные файлы и заглушки больших файлов
-        media_paths = []
-        oversized_items = []
-        for item in media_results:
-            if isinstance(item, dict) and item.get('type') == 'oversized':
-                oversized_items.append(item)
+        try:
+            # Стабильный порядок внутри группы
+            group = sorted(group, key=lambda x: (x.date, x.id))
+
+            # Определяем root_msg сразу
+            root_msg = group[0]
+            root_id = root_msg.id
+            original_ids = [gm.id for gm in group]
+
+            # Подпись — первая непустая среди группы
+            caption = ""
+            for gm in group:
+                t = (gm.message or "").strip()
+                if t:
+                    caption = t
+                    break
+
+            # Скачиваем и брендируем все медиа из группы
+            media_results = []
+            print(f"Processing post {root_msg.id}: downloading media from {len(group)} message(s)...")
+            for gm in group:
+                results = await download_and_brand(client, gm)
+                media_results.extend(results)
+            
+            # Разделяем обычные файлы и заглушки больших файлов
+            media_paths = []
+            oversized_items = []
+            for item in media_results:
+                if isinstance(item, dict) and item.get('type') == 'oversized':
+                    oversized_items.append(item)
+                else:
+                    media_paths.append(item)
+            
+            print(f"Post {root_msg.id}: collected {len(media_paths)} media file(s), {len(oversized_items)} oversized placeholder(s)")
+
+            # Собираем метрики по группе
+            metrics_to_merge = []
+            for gm in group:
+                v, c, l, rmap = _extract_message_metrics(gm)
+                metrics_to_merge.append({"views": v, "comments": c, "likes": l, "reactions": rmap})
+            grouped_views, grouped_comments, grouped_likes, grouped_reactions = _merge_group_metrics(metrics_to_merge)
+
+            post_to_save = {
+                "source_channel": ch,
+                "channel_title": channel_title,
+                "channel_username": channel_username,
+                "original_message_id": root_id,
+                "original_ids": original_ids, # один или несколько ID альбома
+                "original_date": root_msg.date,
+                "content": caption,
+                "translated_content": None, # Будет заполнено позже
+                "target_lang": None,      # Будет заполнено позже
+                "has_media": bool(media_paths),
+                "media_count": len(media_paths),
+                "is_merged": len(group) > 1,
+                "is_top_post": False,
+                "original_views": grouped_views,
+                "original_likes": grouped_likes,
+                "original_comments": grouped_comments,
+                "original_reactions": grouped_reactions,
+            }
+            
+            # --- Сохраняем пост и медиа ---
+            post_id = save_post(post_to_save)
+            if post_id:
+                # Пост успешно сохранен
+                all_media_items = []
+                
+                # Загружаем обычные файлы
+                if media_paths:
+                    media_items = upload_media_files(media_paths, ch, root_id)
+                    if media_items:
+                        all_media_items.extend(media_items)
+                
+                # Добавляем заглушки для больших файлов
+                if oversized_items:
+                    from app.supabase_manager import create_oversized_media_placeholders
+                    oversized_media = create_oversized_media_placeholders(oversized_items, ch, len(all_media_items))
+                    all_media_items.extend(oversized_media)
+                
+                # Сохраняем все медиа
+                if all_media_items:
+                    save_post_media(post_id, all_media_items)
+                    # Обновляем фактические флаги/счетчики медиа у поста
+                    try:
+                        update_post(post_id, {
+                            "has_media": bool(all_media_items),
+                            "media_count": len(all_media_items),
+                        })
+                    except Exception:
+                        pass
+
+                # --- ОТПРАВКА В TELEGRAM ОТКЛЮЧЕНА ---
+                print(f"Post (original_id={root_id}) saved to Supabase (post_id={post_id}).")
             else:
-                media_paths.append(item)
+                print(f"ERROR: Failed to save post (original_id={root_id}) to Supabase")
+
+            # Чистим кэш после обработки
+            for p in media_paths:
+                try: pathlib.Path(p).unlink(missing_ok=True)
+                except Exception as e: print("Cleanup error:", e)
         
-        print(f"Post {root_msg.id}: collected {len(media_paths)} media file(s), {len(oversized_items)} oversized placeholder(s)")
-
-        root_msg = group[0]
-        root_id = root_msg.id
-        original_ids = [gm.id for gm in group]
-
-        # Собираем метрики по группе
-        metrics_to_merge = []
-        for gm in group:
-            v, c, l, rmap = _extract_message_metrics(gm)
-            metrics_to_merge.append({"views": v, "comments": c, "likes": l, "reactions": rmap})
-        grouped_views, grouped_comments, grouped_likes, grouped_reactions = _merge_group_metrics(metrics_to_merge)
-
-        post_to_save = {
-            "source_channel": ch,
-            "channel_title": channel_title,
-            "channel_username": channel_username,
-            "original_message_id": root_id,
-            "original_ids": original_ids, # один или несколько ID альбома
-            "original_date": root_msg.date,
-            "content": caption,
-            "translated_content": None, # Будет заполнено позже
-            "target_lang": None,      # Будет заполнено позже
-            "has_media": bool(media_paths),
-            "media_count": len(media_paths),
-            "is_merged": len(group) > 1,
-            "is_top_post": False,
-            "original_views": grouped_views,
-            "original_likes": grouped_likes,
-            "original_comments": grouped_comments,
-            "original_reactions": grouped_reactions,
-        }
+        except Exception as e:
+            print(f"ERROR processing post: {e}")
+            import traceback
+            traceback.print_exc()
         
-        # --- Сохраняем пост и медиа ---
-        post_id = save_post(post_to_save)
-        if post_id:
-            # Пост успешно сохранен
-            all_media_items = []
-            
-            # Загружаем обычные файлы
-            if media_paths:
-                media_items = upload_media_files(media_paths, ch, root_id)
-                if media_items:
-                    all_media_items.extend(media_items)
-            
-            # Добавляем заглушки для больших файлов
-            if oversized_items:
-                from app.supabase_manager import create_oversized_media_placeholders
-                oversized_media = create_oversized_media_placeholders(oversized_items, ch, len(all_media_items))
-                all_media_items.extend(oversized_media)
-            
-            # Сохраняем все медиа
-            if all_media_items:
-                save_post_media(post_id, all_media_items)
-                # Обновляем фактические флаги/счетчики медиа у поста
-                try:
-                    update_post(post_id, {
-                        "has_media": bool(all_media_items),
-                        "media_count": len(all_media_items),
-                    })
-                except Exception:
-                    pass
-
-            # --- ОТПРАВКА В TELEGRAM ОТКЛЮЧЕНА ---
-            print(f"Post (original_id={root_id}) saved to Supabase (post_id={post_id}).")
-            
-            # Увеличиваем счетчик только после успешного сохранения
+        finally:
+            # Увеличиваем счетчик ВСЕГДА, даже если была ошибка
+            # Иначе прогресс не синхронизируется с UI
             increment_processed()
-        else:
-            print(f"ERROR: Failed to save post (original_id={root_id}) to Supabase")
-
-        # Чистим кэш после обработки
-        for p in media_paths:
-            try: pathlib.Path(p).unlink(missing_ok=True)
-            except Exception as e: print("Cleanup error:", e)
 
 async def main(
     limit: int = 100, 

@@ -10,19 +10,46 @@ import { Badge } from './ui/badge';
 import { toast } from 'sonner';
 import {
   getUserTelegramCredentials,
-  saveTelegramCredentials,
   deleteUserTelegramCredentials,
   validateTelegramCredentials,
+  sendTelegramCode,
+  verifyTelegramCode,
+  verifyTelegramPassword,
 } from '@/services/api';
-import type { UserTelegramCredentialsResponse, OkResponse, ValidateCredentialsResponse } from '@/types/api';
+import type {
+  UserTelegramCredentialsResponse,
+  OkResponse,
+  ValidateCredentialsResponse,
+  SendCodeResponse,
+  VerifyCodeResponse,
+  VerifyPasswordResponse,
+} from '@/types/api';
+
+type Step = 'view' | 'input' | 'code' | 'password' | 'success';
 
 export function TelegramCredentialsManager() {
   const queryClient = useQueryClient();
-  const [isEditing, setIsEditing] = useState(false);
+
+  // Step management
+  const [step, setStep] = useState<Step>('view');
+
+  // Form state - Step 1 (input)
   const [apiId, setApiId] = useState('');
   const [apiHash, setApiHash] = useState('');
-  const [sessionString, setSessionString] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+
+  // Step 2 (code)
+  const [code, setCode] = useState('');
+  const [sessionKey, setSessionKey] = useState('');
+  const [phoneCodeHash, setPhoneCodeHash] = useState('');
+  const [codeExpiresAt, setCodeExpiresAt] = useState<number>(0);
+
+  // Step 3 (password)
+  const [password, setPassword] = useState('');
+
+  // Countdown timer
+  const [countdown, setCountdown] = useState<number>(0);
+  const [resendCooldown, setResendCooldown] = useState<number>(0);
 
   // Загружаем текущие credentials
   const credentialsQuery = useQuery<UserTelegramCredentialsResponse, Error>({
@@ -32,32 +59,154 @@ export function TelegramCredentialsManager() {
     retry: 1,
   });
 
-  // Мутация для сохранения
-  const saveMutation = useMutation<OkResponse, Error, void>({
+  // Countdown timer для истечения кода
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [countdown]);
+
+  // Countdown для повторной отправки
+  useEffect(() => {
+    if (resendCooldown > 0) {
+      const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendCooldown]);
+
+  // Мутация для отправки кода
+  const sendCodeMutation = useMutation<SendCodeResponse, Error, void>({
     mutationFn: async () => {
-      if (!apiId || !apiHash || !sessionString) {
+      if (!apiId || !apiHash || !phoneNumber) {
         throw new Error('Заполните все обязательные поля');
       }
-      
-      return saveTelegramCredentials({
+
+      // Валидация номера телефона
+      if (!phoneNumber.startsWith('+')) {
+        throw new Error('Номер должен начинаться с "+"');
+      }
+
+      if (!/^\+\d{10,15}$/.test(phoneNumber)) {
+        throw new Error('Неверный формат номера. Используйте международный формат (+7...)');
+      }
+
+      return sendTelegramCode({
         telegram_api_id: parseInt(apiId),
         telegram_api_hash: apiHash,
-        telegram_string_session: sessionString,
-        phone_number: phoneNumber || null,
+        phone_number: phoneNumber,
       });
     },
-    onSuccess: () => {
-      toast.success('Telegram credentials успешно сохранены!');
-      setIsEditing(false);
-      setApiId('');
-      setApiHash('');
-      setSessionString('');
-      setPhoneNumber('');
-      void queryClient.invalidateQueries({ queryKey: ['user-telegram-credentials'] });
+    onSuccess: (data) => {
+      if (data.ok && data.code_sent) {
+        setSessionKey(data.session_key);
+        setPhoneCodeHash(data.phone_code_hash);
+        setCountdown(data.expires_in || 300);
+        setResendCooldown(60); // Cooldown 60 секунд перед повторной отправкой
+        setStep('code');
+        toast.success('Код отправлен!', {
+          description: `Проверьте Telegram на номере ${phoneNumber}`,
+        });
+      } else {
+        throw new Error(data.error || 'Не удалось отправить код');
+      }
     },
-    onError: (error) => {
-      toast.error('Ошибка сохранения', {
-        description: error.message || 'Не удалось сохранить credentials',
+    onError: (error: any) => {
+      const retryAfter = error.response?.data?.retry_after;
+      if (retryAfter) {
+        toast.error('Слишком много попыток', {
+          description: `Подождите ${retryAfter} секунд`,
+        });
+        setResendCooldown(retryAfter);
+      } else {
+        toast.error('Ошибка отправки кода', {
+          description: error.message || 'Проверьте введенные данные',
+        });
+      }
+    },
+  });
+
+  // Мутация для проверки кода
+  const verifyCodeMutation = useMutation<VerifyCodeResponse, Error, void>({
+    mutationFn: async () => {
+      if (!code) {
+        throw new Error('Введите код подтверждения');
+      }
+
+      return verifyTelegramCode({
+        telegram_api_id: parseInt(apiId),
+        telegram_api_hash: apiHash,
+        phone_number: phoneNumber,
+        code: code,
+        phone_code_hash: phoneCodeHash,
+        session_key: sessionKey,
+      });
+    },
+    onSuccess: (data) => {
+      if (data.ok && data.authorized) {
+        // Успешная авторизация!
+        setStep('success');
+        toast.success('Успешно!', {
+          description: 'Telegram аккаунт подключен',
+        });
+        setTimeout(() => {
+          resetForm();
+          void queryClient.invalidateQueries({ queryKey: ['user-telegram-credentials'] });
+        }, 2000);
+      } else if (data.ok && data.needs_password) {
+        // Требуется 2FA пароль
+        setStep('password');
+        toast.info('Требуется пароль', {
+          description: 'Ваш аккаунт защищен двухфакторной аутентификацией',
+        });
+      } else {
+        throw new Error(data.error || 'Ошибка авторизации');
+      }
+    },
+    onError: (error: any) => {
+      const retryAfter = error.response?.data?.retry_after;
+      if (retryAfter) {
+        toast.error('Слишком много попыток', {
+          description: `Подождите ${retryAfter} секунд`,
+        });
+      } else {
+        toast.error('Ошибка проверки кода', {
+          description: error.message || 'Неверный код подтверждения',
+        });
+      }
+      // Не сбрасываем код, чтобы пользователь мог попробовать еще раз
+    },
+  });
+
+  // Мутация для проверки 2FA пароля
+  const verifyPasswordMutation = useMutation<VerifyPasswordResponse, Error, void>({
+    mutationFn: async () => {
+      if (!password) {
+        throw new Error('Введите пароль');
+      }
+
+      return verifyTelegramPassword({
+        password: password,
+        session_key: sessionKey,
+      });
+    },
+    onSuccess: (data) => {
+      if (data.ok && data.authorized) {
+        setStep('success');
+        toast.success('Успешно!', {
+          description: 'Авторизация с 2FA завершена',
+        });
+        setTimeout(() => {
+          resetForm();
+          void queryClient.invalidateQueries({ queryKey: ['user-telegram-credentials'] });
+        }, 2000);
+      } else {
+        throw new Error(data.error || 'Ошибка авторизации');
+      }
+    },
+    onError: (error: any) => {
+      toast.error('Ошибка проверки пароля', {
+        description: error.message || 'Неверный пароль двухфакторной аутентификации',
       });
     },
   });
@@ -97,8 +246,38 @@ export function TelegramCredentialsManager() {
     },
   });
 
-  const handleSave = () => {
-    saveMutation.mutate();
+  const resetForm = () => {
+    setStep('view');
+    setApiId('');
+    setApiHash('');
+    setPhoneNumber('');
+    setCode('');
+    setPassword('');
+    setSessionKey('');
+    setPhoneCodeHash('');
+    setCountdown(0);
+    setResendCooldown(0);
+  };
+
+  const handleStartAuth = () => {
+    setStep('input');
+  };
+
+  const handleSendCode = () => {
+    sendCodeMutation.mutate();
+  };
+
+  const handleResendCode = () => {
+    setCode('');
+    sendCodeMutation.mutate();
+  };
+
+  const handleVerifyCode = () => {
+    verifyCodeMutation.mutate();
+  };
+
+  const handleVerifyPassword = () => {
+    verifyPasswordMutation.mutate();
   };
 
   const handleDelete = () => {
@@ -111,8 +290,19 @@ export function TelegramCredentialsManager() {
     validateMutation.mutate();
   };
 
+  const handleCancel = () => {
+    if (confirm('Отменить авторизацию? Весь прогресс будет потерян.')) {
+      resetForm();
+    }
+  };
+
   const hasCredentials = credentialsQuery.data?.has_credentials ?? false;
-  const isLoading = credentialsQuery.isLoading || saveMutation.isPending || deleteMutation.isPending;
+  const isLoading =
+    credentialsQuery.isLoading ||
+    sendCodeMutation.isPending ||
+    verifyCodeMutation.isPending ||
+    verifyPasswordMutation.isPending ||
+    deleteMutation.isPending;
 
   return (
     <Card className='shadow-sm rounded-lg'>
@@ -121,17 +311,22 @@ export function TelegramCredentialsManager() {
           <div>
             <h3 className='text-lg font-semibold'>Telegram API Credentials</h3>
             <p className='text-sm text-gray-600 mt-1'>
-              Настройте свои credentials для работы с Telegram API
+              {step === 'view' && 'Настройте свои credentials для работы с Telegram API'}
+              {step === 'input' && 'Шаг 1: Введите API данные и номер телефона'}
+              {step === 'code' && 'Шаг 2: Введите код из Telegram'}
+              {step === 'password' && 'Шаг 3: Введите пароль 2FA'}
+              {step === 'success' && 'Авторизация завершена!'}
             </p>
           </div>
-          {hasCredentials && (
+          {hasCredentials && step === 'view' && (
             <Badge variant='default' className='bg-green-600'>
               ✓ Сохранено
             </Badge>
           )}
         </div>
 
-        {hasCredentials && !isEditing ? (
+        {/* VIEW MODE - Показ существующих credentials */}
+        {step === 'view' && hasCredentials && (
           <div className='space-y-3'>
             <Alert>
               <div className='space-y-2'>
@@ -160,12 +355,8 @@ export function TelegramCredentialsManager() {
               >
                 {validateMutation.isPending ? 'Проверка...' : 'Проверить валидность'}
               </Button>
-              <Button
-                onClick={() => setIsEditing(true)}
-                variant='outline'
-                size='sm'
-              >
-                Изменить
+              <Button onClick={handleStartAuth} variant='outline' size='sm'>
+                Переавторизоваться
               </Button>
               <Button
                 onClick={handleDelete}
@@ -177,11 +368,28 @@ export function TelegramCredentialsManager() {
               </Button>
             </div>
           </div>
-        ) : (
+        )}
+
+        {step === 'view' && !hasCredentials && (
+          <div className='space-y-3'>
+            <Alert>
+              <p className='text-sm'>
+                У вас нет сохраненных Telegram credentials. Добавьте их, чтобы использовать функции
+                парсинга.
+              </p>
+            </Alert>
+            <Button onClick={handleStartAuth} size='sm'>
+              Добавить Credentials
+            </Button>
+          </div>
+        )}
+
+        {/* STEP 1: INPUT - Ввод API ID, Hash и телефона */}
+        {step === 'input' && (
           <div className='space-y-3'>
             <Alert>
               <p className='text-sm mb-2'>
-                Получите свои API credentials на{' '}
+                Получите API credentials на{' '}
                 <a
                   href='https://my.telegram.org/apps'
                   target='_blank'
@@ -192,7 +400,7 @@ export function TelegramCredentialsManager() {
                 </a>
               </p>
               <p className='text-xs text-gray-600'>
-                ℹ️ Session String можно получить, запустив авторизацию через telethon или pyrogram.
+                ℹ️ После ввода данных вы получите код подтверждения в Telegram
               </p>
             </Alert>
 
@@ -206,6 +414,7 @@ export function TelegramCredentialsManager() {
                 value={apiId}
                 onChange={(e) => setApiId(e.target.value)}
                 disabled={isLoading}
+                autoFocus
               />
             </div>
 
@@ -219,54 +428,150 @@ export function TelegramCredentialsManager() {
                 value={apiHash}
                 onChange={(e) => setApiHash(e.target.value)}
                 disabled={isLoading}
+                maxLength={32}
               />
+              <p className='text-xs text-gray-500'>Должно быть 32 символа</p>
             </div>
 
             <div className='space-y-2'>
               <label className='block text-sm font-medium'>
-                Session String <span className='text-red-500'>*</span>
+                Номер телефона <span className='text-red-500'>*</span>
               </label>
               <Input
-                type='password'
-                placeholder='1BVtsOLUBu...'
-                value={sessionString}
-                onChange={(e) => setSessionString(e.target.value)}
-                disabled={isLoading}
-              />
-            </div>
-
-            <div className='space-y-2'>
-              <label className='block text-sm font-medium'>Номер телефона (опционально)</label>
-              <Input
                 type='tel'
-                placeholder='+7...'
+                placeholder='+79001234567'
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
                 disabled={isLoading}
               />
+              <p className='text-xs text-gray-500'>Международный формат (начинается с +)</p>
             </div>
 
             <div className='flex gap-2 pt-2'>
               <Button
-                onClick={handleSave}
-                disabled={isLoading || !apiId || !apiHash || !sessionString}
+                onClick={handleSendCode}
+                disabled={isLoading || !apiId || !apiHash || !phoneNumber || apiHash.length !== 32}
               >
-                {saveMutation.isPending ? 'Сохранение...' : 'Сохранить'}
+                {sendCodeMutation.isPending ? 'Отправка...' : 'Получить код'}
               </Button>
-              {hasCredentials && (
-                <Button
-                  onClick={() => setIsEditing(false)}
-                  variant='outline'
-                  disabled={isLoading}
-                >
-                  Отмена
-                </Button>
-              )}
+              <Button onClick={handleCancel} variant='outline' disabled={isLoading}>
+                Отмена
+              </Button>
             </div>
+          </div>
+        )}
+
+        {/* STEP 2: CODE - Ввод кода подтверждения */}
+        {step === 'code' && (
+          <div className='space-y-3'>
+            <Alert>
+              <div className='space-y-2'>
+                <p className='text-sm'>
+                  📱 Код отправлен в Telegram на номер <strong>{phoneNumber}</strong>
+                </p>
+                {countdown > 0 && (
+                  <p className='text-xs text-gray-600'>
+                    Код действителен еще {Math.floor(countdown / 60)}:
+                    {String(countdown % 60).padStart(2, '0')}
+                  </p>
+                )}
+                {countdown === 0 && (
+                  <p className='text-xs text-red-600'>Код истек. Запросите новый.</p>
+                )}
+              </div>
+            </Alert>
+
+            <div className='space-y-2'>
+              <label className='block text-sm font-medium'>
+                Код подтверждения <span className='text-red-500'>*</span>
+              </label>
+              <Input
+                type='text'
+                placeholder='12345'
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+                disabled={isLoading}
+                maxLength={6}
+                autoFocus
+                className='text-center text-2xl tracking-widest'
+              />
+              <p className='text-xs text-gray-500'>Введите 5-6 цифр из Telegram</p>
+            </div>
+
+            <div className='flex gap-2 pt-2'>
+              <Button
+                onClick={handleVerifyCode}
+                disabled={isLoading || !code || code.length < 5 || countdown === 0}
+              >
+                {verifyCodeMutation.isPending ? 'Проверка...' : 'Подтвердить'}
+              </Button>
+              <Button
+                onClick={handleResendCode}
+                variant='outline'
+                disabled={isLoading || resendCooldown > 0}
+              >
+                {resendCooldown > 0 ? `Повтор через ${resendCooldown}с` : 'Отправить повторно'}
+              </Button>
+              <Button onClick={handleCancel} variant='ghost' disabled={isLoading}>
+                Отмена
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 3: PASSWORD - Ввод 2FA пароля */}
+        {step === 'password' && (
+          <div className='space-y-3'>
+            <Alert>
+              <div className='space-y-2'>
+                <p className='text-sm'>🔒 Ваш аккаунт защищен двухфакторной аутентификацией</p>
+                <p className='text-xs text-gray-600'>
+                  Введите пароль, который вы установили в настройках Telegram
+                </p>
+              </div>
+            </Alert>
+
+            <div className='space-y-2'>
+              <label className='block text-sm font-medium'>
+                Пароль 2FA <span className='text-red-500'>*</span>
+              </label>
+              <Input
+                type='password'
+                placeholder='Введите пароль от Telegram'
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading}
+                autoFocus
+              />
+            </div>
+
+            <div className='flex gap-2 pt-2'>
+              <Button onClick={handleVerifyPassword} disabled={isLoading || !password}>
+                {verifyPasswordMutation.isPending ? 'Проверка...' : 'Подтвердить'}
+              </Button>
+              <Button onClick={handleCancel} variant='outline' disabled={isLoading}>
+                Отмена
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 4: SUCCESS - Успешная авторизация */}
+        {step === 'success' && (
+          <div className='space-y-3'>
+            <Alert className='bg-green-50 border-green-200'>
+              <div className='space-y-2'>
+                <p className='text-sm font-semibold text-green-800'>
+                  ✅ Telegram аккаунт успешно подключен!
+                </p>
+                <p className='text-xs text-green-700'>
+                  Теперь вы можете использовать функции парсинга каналов
+                </p>
+              </div>
+            </Alert>
           </div>
         )}
       </CardContent>
     </Card>
   );
 }
-

@@ -5,7 +5,10 @@ import uvicorn
 import asyncio
 import os
 import re
-from pydantic import BaseModel
+import time
+import hashlib
+from typing import Dict, Any, Optional
+from pydantic import BaseModel, Field
 
 # Импортируем вашу основную функцию и управление состоянием
 from app.main import main as run_pipeline_main
@@ -42,6 +45,78 @@ app.add_middleware(
 
 # Глобальная переменная для отслеживания задачи
 current_task: asyncio.Task = None
+
+# ===============================
+# Временное хранилище сессий для 2FA
+# ===============================
+
+# Структура: {session_key: {session_data, phone_code_hash, expires_at, api_id, api_hash, phone, attempts}}
+temporary_sessions: Dict[str, Dict[str, Any]] = {}
+
+# Rate limiting для защиты от злоупотреблений
+# {user_key: {send_code_attempts: [(timestamp, count)], verify_code_attempts: []}}
+rate_limit_storage: Dict[str, Dict[str, list]] = {}
+
+SEND_CODE_RATE_LIMIT = 3  # Максимум 3 попытки
+SEND_CODE_WINDOW = 300  # За 5 минут (300 секунд)
+SEND_CODE_COOLDOWN = 60  # Минимум 60 секунд между отправками
+
+VERIFY_CODE_RATE_LIMIT = 5  # Максимум 5 попыток
+VERIFY_CODE_WINDOW = 300  # За 5 минут
+
+SESSION_TTL = 600  # Временные сессии живут 10 минут
+
+def _generate_session_key(phone: str, api_id: int) -> str:
+    """Генерирует уникальный ключ для временной сессии."""
+    raw = f"{phone}:{api_id}:{time.time()}"
+    return hashlib.sha256(raw.encode()).hexdigest()[:32]
+
+def _cleanup_expired_sessions():
+    """Удаляет истекшие временные сессии."""
+    now = time.time()
+    expired_keys = [k for k, v in temporary_sessions.items() if v.get("expires_at", 0) < now]
+    for key in expired_keys:
+        del temporary_sessions[key]
+
+def _check_rate_limit(user_key: str, action: str, max_attempts: int, window: int) -> tuple[bool, Optional[int]]:
+    """
+    Проверяет rate limiting.
+    
+    Returns:
+        (allowed: bool, retry_after: Optional[int])
+    """
+    now = time.time()
+    
+    if user_key not in rate_limit_storage:
+        rate_limit_storage[user_key] = {}
+    
+    if action not in rate_limit_storage[user_key]:
+        rate_limit_storage[user_key][action] = []
+    
+    attempts = rate_limit_storage[user_key][action]
+    
+    # Удаляем старые попытки вне окна
+    attempts[:] = [t for t in attempts if now - t < window]
+    
+    if len(attempts) >= max_attempts:
+        # Вычисляем время до разблокировки
+        oldest = min(attempts)
+        retry_after = int(oldest + window - now)
+        return False, retry_after
+    
+    return True, None
+
+def _record_rate_limit_attempt(user_key: str, action: str):
+    """Записывает попытку для rate limiting."""
+    now = time.time()
+    
+    if user_key not in rate_limit_storage:
+        rate_limit_storage[user_key] = {}
+    
+    if action not in rate_limit_storage[user_key]:
+        rate_limit_storage[user_key][action] = []
+    
+    rate_limit_storage[user_key][action].append(now)
 
 def _normalize_channel_identifier(value: str | None) -> str | None:
     """
@@ -297,6 +372,27 @@ class TranslationPayload(BaseModel):
     text: str
     target_lang: str = "EN"
     prompt: str | None = None
+
+# --- Pydantic модели для 2FA авторизации Telegram ---
+class SendCodePayload(BaseModel):
+    telegram_api_id: int = Field(..., gt=0)
+    telegram_api_hash: str = Field(..., min_length=32, max_length=32)
+    phone_number: str = Field(..., pattern=r'^\+\d{10,15}$')
+    user_identifier: Optional[str] = None
+
+class VerifyCodePayload(BaseModel):
+    telegram_api_id: int = Field(..., gt=0)
+    telegram_api_hash: str = Field(..., min_length=32, max_length=32)
+    phone_number: str = Field(..., pattern=r'^\+\d{10,15}$')
+    code: str = Field(..., min_length=5, max_length=6)
+    phone_code_hash: str = Field(..., min_length=1)
+    session_key: str = Field(..., min_length=32, max_length=32)
+    user_identifier: Optional[str] = None
+
+class VerifyPasswordPayload(BaseModel):
+    password: str = Field(..., min_length=1)
+    session_key: str = Field(..., min_length=32, max_length=32)
+    user_identifier: Optional[str] = None
 
 @app.post("/translate")
 async def translate_endpoint(payload: TranslationPayload):
@@ -723,6 +819,388 @@ async def validate_telegram_credentials_endpoint(user_identifier: str | None = N
         return JSONResponse(
             status_code=500,
             content={"ok": False, "error": str(e)}
+        )
+
+# ===============================
+# 2FA Authorization Endpoints
+# ===============================
+
+@app.post("/user/telegram-credentials/send-code")
+async def send_telegram_verification_code(payload: SendCodePayload):
+    """
+    Отправляет код подтверждения в Telegram.
+    
+    Процесс:
+    1. Создает временный TelegramClient
+    2. Отправляет код на указанный номер телефона
+    3. Сохраняет временную сессию для последующей верификации
+    4. Возвращает session_key для следующего шага
+    """
+    _cleanup_expired_sessions()
+    
+    try:
+        from telethon import TelegramClient
+        from telethon.sessions import StringSession
+        from telethon.errors import (
+            ApiIdInvalidError, 
+            PhoneNumberInvalidError,
+            FloodWaitError
+        )
+        
+        # Rate limiting - проверяем отправку кода
+        user_key = f"{payload.phone_number}:{payload.telegram_api_id}"
+        allowed, retry_after = _check_rate_limit(
+            user_key, 
+            "send_code", 
+            SEND_CODE_RATE_LIMIT, 
+            SEND_CODE_WINDOW
+        )
+        
+        if not allowed:
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "ok": False,
+                    "error": f"Слишком много попыток. Подождите {retry_after} секунд.",
+                    "retry_after": retry_after
+                }
+            )
+        
+        # Создаем временный клиент с пустой сессией
+        client = TelegramClient(
+            StringSession(),
+            payload.telegram_api_id,
+            payload.telegram_api_hash
+        )
+        
+        try:
+            await client.connect()
+            
+            # Отправляем код
+            sent_code = await client.send_code_request(payload.phone_number)
+            
+            # Получаем данные сессии для сохранения
+            session_string = client.session.save()
+            
+            # Генерируем ключ для временного хранилища
+            session_key = _generate_session_key(payload.phone_number, payload.telegram_api_id)
+            
+            # Сохраняем временную сессию
+            temporary_sessions[session_key] = {
+                "session_data": session_string,
+                "phone_code_hash": sent_code.phone_code_hash,
+                "api_id": payload.telegram_api_id,
+                "api_hash": payload.telegram_api_hash,
+                "phone": payload.phone_number,
+                "user_identifier": _get_user_identifier(payload.user_identifier),
+                "expires_at": time.time() + SESSION_TTL,
+                "verify_attempts": 0
+            }
+            
+            # Отключаемся (но сессия сохранена)
+            await client.disconnect()
+            
+            # Записываем попытку для rate limiting
+            _record_rate_limit_attempt(user_key, "send_code")
+            
+            print(f"Code sent to {payload.phone_number}, session_key: {session_key}")
+            
+            return {
+                "ok": True,
+                "code_sent": True,
+                "session_key": session_key,
+                "phone_code_hash": sent_code.phone_code_hash,
+                "expires_in": SESSION_TTL
+            }
+            
+        except ApiIdInvalidError:
+            return JSONResponse(
+                status_code=400,
+                content={"ok": False, "error": "Неверный API ID или API Hash"}
+            )
+        except PhoneNumberInvalidError:
+            return JSONResponse(
+                status_code=400,
+                content={"ok": False, "error": "Неверный номер телефона. Используйте международный формат (+7...)"}
+            )
+        except FloodWaitError as e:
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "ok": False,
+                    "error": f"Telegram ограничил отправку кодов. Подождите {e.seconds} секунд.",
+                    "retry_after": e.seconds
+                }
+            )
+        finally:
+            if client.is_connected():
+                await client.disconnect()
+                
+    except Exception as e:
+        print(f"Send verification code error: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"ok": False, "error": f"Ошибка отправки кода: {str(e)}"}
+        )
+
+@app.post("/user/telegram-credentials/verify-code")
+async def verify_telegram_code(payload: VerifyCodePayload):
+    """
+    Подтверждает код из Telegram и создает постоянную сессию.
+    
+    Процесс:
+    1. Восстанавливает временный TelegramClient
+    2. Подтверждает код
+    3. Если требуется 2FA пароль - возвращает needs_password: true
+    4. Иначе сохраняет session_string в БД
+    """
+    _cleanup_expired_sessions()
+    
+    try:
+        from telethon import TelegramClient
+        from telethon.sessions import StringSession
+        from telethon.errors import (
+            PhoneCodeInvalidError,
+            PhoneCodeExpiredError,
+            SessionPasswordNeededError,
+            FloodWaitError
+        )
+        from app.crypto_utils import encrypt_string
+        from app.supabase_manager import save_user_telegram_credentials
+        
+        # Получаем временную сессию
+        session_data = temporary_sessions.get(payload.session_key)
+        
+        if not session_data:
+            return JSONResponse(
+                status_code=400,
+                content={"ok": False, "error": "Сессия не найдена или истекла. Запросите новый код."}
+            )
+        
+        # Проверяем rate limiting для verify
+        user_key = f"{payload.phone_number}:{payload.telegram_api_id}:verify"
+        allowed, retry_after = _check_rate_limit(
+            user_key,
+            "verify_code",
+            VERIFY_CODE_RATE_LIMIT,
+            VERIFY_CODE_WINDOW
+        )
+        
+        if not allowed:
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "ok": False,
+                    "error": f"Слишком много попыток ввода кода. Подождите {retry_after} секунд.",
+                    "retry_after": retry_after
+                }
+            )
+        
+        # Восстанавливаем клиент из сохраненной сессии
+        client = TelegramClient(
+            StringSession(session_data["session_data"]),
+            session_data["api_id"],
+            session_data["api_hash"]
+        )
+        
+        try:
+            await client.connect()
+            
+            # Пытаемся войти с кодом
+            try:
+                await client.sign_in(
+                    payload.phone_number,
+                    payload.code,
+                    phone_code_hash=payload.phone_code_hash
+                )
+                
+                # Успешная авторизация!
+                final_session_string = client.session.save()
+                
+                # Шифруем и сохраняем в БД
+                encrypted_session = encrypt_string(final_session_string)
+                user_id = _get_user_identifier(payload.user_identifier)
+                
+                success = save_user_telegram_credentials(
+                    user_identifier=user_id,
+                    telegram_api_id=payload.telegram_api_id,
+                    telegram_api_hash=payload.telegram_api_hash,
+                    encrypted_session=encrypted_session,
+                    phone_number=payload.phone_number
+                )
+                
+                # Удаляем временную сессию
+                if payload.session_key in temporary_sessions:
+                    del temporary_sessions[payload.session_key]
+                
+                await client.disconnect()
+                
+                if success:
+                    return {
+                        "ok": True,
+                        "authorized": True,
+                        "message": "Авторизация успешна!"
+                    }
+                else:
+                    return JSONResponse(
+                        status_code=500,
+                        content={"ok": False, "error": "Не удалось сохранить credentials в БД"}
+                    )
+                    
+            except SessionPasswordNeededError:
+                # Требуется 2FA пароль
+                # Обновляем временную сессию с новыми данными
+                temporary_sessions[payload.session_key]["session_data"] = client.session.save()
+                temporary_sessions[payload.session_key]["expires_at"] = time.time() + SESSION_TTL
+                
+                await client.disconnect()
+                
+                return {
+                    "ok": True,
+                    "authorized": False,
+                    "needs_password": True,
+                    "message": "Требуется пароль двухфакторной аутентификации",
+                    "session_key": payload.session_key
+                }
+                
+        except PhoneCodeInvalidError:
+            _record_rate_limit_attempt(user_key, "verify_code")
+            return JSONResponse(
+                status_code=400,
+                content={"ok": False, "error": "Неверный код подтверждения"}
+            )
+        except PhoneCodeExpiredError:
+            # Удаляем истекшую сессию
+            if payload.session_key in temporary_sessions:
+                del temporary_sessions[payload.session_key]
+            return JSONResponse(
+                status_code=400,
+                content={"ok": False, "error": "Код истек. Запросите новый код."}
+            )
+        except FloodWaitError as e:
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "ok": False,
+                    "error": f"Слишком много попыток. Подождите {e.seconds} секунд.",
+                    "retry_after": e.seconds
+                }
+            )
+        finally:
+            if client.is_connected():
+                await client.disconnect()
+                
+    except Exception as e:
+        print(f"Verify code error: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"ok": False, "error": f"Ошибка проверки кода: {str(e)}"}
+        )
+
+@app.post("/user/telegram-credentials/verify-password")
+async def verify_telegram_password(payload: VerifyPasswordPayload):
+    """
+    Подтверждает 2FA пароль для аккаунтов с двухфакторной аутентификацией.
+    
+    Процесс:
+    1. Восстанавливает клиент из временной сессии
+    2. Подтверждает пароль
+    3. Сохраняет session_string в БД
+    """
+    _cleanup_expired_sessions()
+    
+    try:
+        from telethon import TelegramClient
+        from telethon.sessions import StringSession
+        from telethon.errors import PasswordHashInvalidError, FloodWaitError
+        from app.crypto_utils import encrypt_string
+        from app.supabase_manager import save_user_telegram_credentials
+        
+        # Получаем временную сессию
+        session_data = temporary_sessions.get(payload.session_key)
+        
+        if not session_data:
+            return JSONResponse(
+                status_code=400,
+                content={"ok": False, "error": "Сессия не найдена или истекла. Начните авторизацию заново."}
+            )
+        
+        # Восстанавливаем клиент
+        client = TelegramClient(
+            StringSession(session_data["session_data"]),
+            session_data["api_id"],
+            session_data["api_hash"]
+        )
+        
+        try:
+            await client.connect()
+            
+            # Подтверждаем пароль
+            try:
+                await client.sign_in(password=payload.password)
+                
+                # Успешная авторизация!
+                final_session_string = client.session.save()
+                
+                # Шифруем и сохраняем в БД
+                encrypted_session = encrypt_string(final_session_string)
+                user_id = _get_user_identifier(payload.user_identifier or session_data.get("user_identifier"))
+                
+                success = save_user_telegram_credentials(
+                    user_identifier=user_id,
+                    telegram_api_id=session_data["api_id"],
+                    telegram_api_hash=session_data["api_hash"],
+                    encrypted_session=encrypted_session,
+                    phone_number=session_data["phone"]
+                )
+                
+                # Удаляем временную сессию
+                if payload.session_key in temporary_sessions:
+                    del temporary_sessions[payload.session_key]
+                
+                await client.disconnect()
+                
+                if success:
+                    return {
+                        "ok": True,
+                        "authorized": True,
+                        "message": "Авторизация с 2FA успешна!"
+                    }
+                else:
+                    return JSONResponse(
+                        status_code=500,
+                        content={"ok": False, "error": "Не удалось сохранить credentials в БД"}
+                    )
+                    
+            except PasswordHashInvalidError:
+                return JSONResponse(
+                    status_code=400,
+                    content={"ok": False, "error": "Неверный пароль двухфакторной аутентификации"}
+                )
+            except FloodWaitError as e:
+                return JSONResponse(
+                    status_code=429,
+                    content={
+                        "ok": False,
+                        "error": f"Слишком много попыток. Подождите {e.seconds} секунд.",
+                        "retry_after": e.seconds
+                    }
+                )
+        finally:
+            if client.is_connected():
+                await client.disconnect()
+                
+    except Exception as e:
+        print(f"Verify password error: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"ok": False, "error": f"Ошибка проверки пароля: {str(e)}"}
         )
 
 

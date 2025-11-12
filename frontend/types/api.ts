@@ -91,3 +91,55 @@ export type ValidateCredentialsResponse = {
   username?: string | null;
   phone?: string | null;
 };
+
+// 2FA Authorization types
+export type SendCodeRequest = {
+  telegram_api_id: number;
+  telegram_api_hash: string;
+  phone_number: string;
+  user_identifier?: string | null;
+};
+
+export type SendCodeResponse = {
+  ok: boolean;
+  code_sent: boolean;
+  session_key: string;
+  phone_code_hash: string;
+  expires_in: number;
+  error?: string;
+  retry_after?: number;
+};
+
+export type VerifyCodeRequest = {
+  telegram_api_id: number;
+  telegram_api_hash: string;
+  phone_number: string;
+  code: string;
+  phone_code_hash: string;
+  session_key: string;
+  user_identifier?: string | null;
+};
+
+export type VerifyCodeResponse = {
+  ok: boolean;
+  authorized?: boolean;
+  needs_password?: boolean;
+  message?: string;
+  session_key?: string;
+  error?: string;
+  retry_after?: number;
+};
+
+export type VerifyPasswordRequest = {
+  password: string;
+  session_key: string;
+  user_identifier?: string | null;
+};
+
+export type VerifyPasswordResponse = {
+  ok: boolean;
+  authorized?: boolean;
+  message?: string;
+  error?: string;
+  retry_after?: number;
+};

@@ -13,14 +13,21 @@ DEFAULT_STATE = {
     "channels": {} # Для хранения last_id по каждому каналу
 }
 
+# Кэш для processed count (обновляется только при чтении из БД)
+_processed_cache = 0
+
 def get_state():
     """Возвращает текущее состояние из Supabase, или состояние по умолчанию."""
+    global _processed_cache
     state = get_state_document()
-    # Убедимся, что все ключи из DEFAULT_STATE присутствуют
-    return {**DEFAULT_STATE, **(state or {})}
+    result = {**DEFAULT_STATE, **(state or {})}
+    # Обновляем кэш при чтении
+    _processed_cache = int(result.get("processed", 0))
+    return result
 
 def reset_state():
     """Сбрасывает состояние прогресса в Supabase, но сохраняет last_id каналов."""
+    global _processed_cache
     current_state = get_state()
     new_state = {
         **current_state, # Сохраняем существующие значения, включая 'channels'
@@ -30,6 +37,7 @@ def reset_state():
         "finished": False,
     }
     set_state(new_state)
+    _processed_cache = 0
 
 def set_running(running: bool):
     """Устанавливает флаг, что процесс запущен или остановлен."""
@@ -43,10 +51,13 @@ def set_finished(finished: bool):
     update_state({"finished": finished})
 
 def increment_processed():
-    """Увеличивает счетчик обработанных постов в Supabase."""
-    state = get_state()
-    processed = int(state.get("processed", 0)) + 1
-    update_state({"processed": processed})
+    """
+    Увеличивает счетчик обработанных постов в Supabase.
+    Оптимизировано: использует кэш вместо чтения из БД каждый раз.
+    """
+    global _processed_cache
+    _processed_cache += 1
+    update_state({"processed": _processed_cache})
 
 def set_total(total: int):
     """Устанавливает общее количество постов для обработки."""
