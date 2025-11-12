@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useMemo, useCallback, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { usePipeline } from '@/hooks/usePipeline';
 import { usePostLimit } from '@/hooks/usePostLimit';
 import { useChannel } from '@/hooks/useChannel';
@@ -9,13 +10,29 @@ import { Card, CardContent } from './ui/card';
 import { NumberInput } from './ui/number-input';
 import { Switch } from './ui/switch';
 import { ChannelInput } from './ui/channel-input';
+import { Alert } from './ui/alert';
+import { Button } from './ui/button';
 import { toast } from 'sonner';
+import { getUserTelegramCredentials } from '@/services/api';
+import type { UserTelegramCredentialsResponse } from '@/types/api';
+import Link from 'next/link';
+import { Settings } from 'lucide-react';
 
 export default function Dashboard() {
   const { status, error, success, runPipeline, stopPipeline, isLoading } = usePipeline();
   const { postLimit, validationError, setPostLimitValue } = usePostLimit();
   const [periodHours, setPeriodHours] = useState<number>(1);
   const [isTopPosts, setIsTopPosts] = useState<boolean>(false);
+
+  // Проверяем наличие user credentials
+  const userCredsQuery = useQuery<UserTelegramCredentialsResponse, Error>({
+    queryKey: ['user-telegram-credentials'],
+    queryFn: ({ signal }) => getUserTelegramCredentials(signal),
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+
+  const hasUserCredentials = userCredsQuery.data?.has_credentials ?? false;
 
   const {
     channelUsername,
@@ -55,11 +72,26 @@ export default function Dashboard() {
 
   const handleRun = useCallback(() => {
     if (validationError) return;
+
+    // Проверяем наличие user credentials (теперь обязательно)
+    if (!hasUserCredentials) {
+      toast.error('Сначала добавьте свои Telegram credentials в настройках');
+      return;
+    }
+
     const channelUrl = channelUsername.startsWith('@')
       ? `t.me/${channelUsername.slice(1)}`
       : `t.me/${channelUsername}`;
-    void runPipeline(postLimit, periodHours, channelUrl, isTopPosts);
-  }, [validationError, channelUsername, runPipeline, postLimit, periodHours, isTopPosts]);
+    void runPipeline(postLimit, periodHours, channelUrl, isTopPosts, true); // Всегда используем user credentials
+  }, [
+    validationError,
+    channelUsername,
+    runPipeline,
+    postLimit,
+    periodHours,
+    isTopPosts,
+    hasUserCredentials,
+  ]);
 
   const isRunButtonDisabled = useMemo(
     () => !!validationError || isLoading,
@@ -72,6 +104,28 @@ export default function Dashboard() {
         <div className='mb-4'>
           <h1 className='text-xl md:text-2xl font-bold mb-1'>Панель управления</h1>
         </div>
+
+        {/* Предупреждение если нет credentials */}
+        {!hasUserCredentials && (
+          <Alert className='mb-4 border-orange-200 bg-orange-50'>
+            <div className='flex items-start justify-between gap-4'>
+              <div className='flex-1'>
+                <p className='text-sm font-medium text-orange-900 mb-1'>
+                  ⚠️ Требуется настройка Telegram credentials
+                </p>
+                <p className='text-sm text-orange-700'>
+                  Для работы парсера необходимо добавить ваши Telegram API credentials
+                </p>
+              </div>
+              <Link href='/settings'>
+                <Button size='sm' variant='default'>
+                  <Settings className='h-4 w-4 mr-2' />
+                  Настроить
+                </Button>
+              </Link>
+            </div>
+          </Alert>
+        )}
 
         <Card className='shadow-sm rounded-lg'>
           <CardContent className='p-4 space-y-4'>

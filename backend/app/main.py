@@ -669,8 +669,23 @@ async def process_channel(client: TelegramClient, ch: str, limit: int):
             try: pathlib.Path(p).unlink(missing_ok=True)
             except Exception as e: print("Cleanup error:", e)
 
-async def main(limit: int = 100, period_hours: int | None = None, channel_url: str | None = None, is_top_posts: bool = False):
-    """Основная функция, теперь принимает лимит постов, канал и режим парсинга."""
+async def main(
+    limit: int = 100, 
+    period_hours: int | None = None, 
+    channel_url: str | None = None, 
+    is_top_posts: bool = False,
+    user_identifier: str | None = None
+):
+    """
+    Основная функция, теперь принимает лимит постов, канал, режим парсинга и user_identifier.
+    
+    Args:
+        limit: Количество постов для парсинга
+        period_hours: Период в часах для топ-постов
+        channel_url: URL канала для парсинга
+        is_top_posts: Флаг режима топ-постов
+        user_identifier: Идентификатор пользователя для использования его credentials (опционально)
+    """
     # Инициализируем Supabase перед началом работы
     try:
         initialize_supabase()
@@ -680,9 +695,29 @@ async def main(limit: int = 100, period_hours: int | None = None, channel_url: s
         print("Please check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.")
         raise
     
-    api_id, api_hash = _get_telegram_credentials()
-    # Поддержка строковой сессии (предпочтительно для прод/CI) + безопасный фолбэк
-    session_string = os.getenv("TELEGRAM_STRING_SESSION")
+    # User credentials обязательны
+    if not user_identifier:
+        raise RuntimeError(
+            "User identifier is required. "
+            "Please add your Telegram credentials in settings."
+        )
+    
+    print(f"🔑 Loading Telegram credentials for user: {user_identifier}")
+    from app.supabase_manager import get_user_telegram_credentials
+    from app.crypto_utils import decrypt_string
+    
+    credentials = get_user_telegram_credentials(user_identifier)
+    if not credentials:
+        raise RuntimeError(
+            f"Telegram credentials not found for user '{user_identifier}'. "
+            "Please add your Telegram credentials in settings."
+        )
+    
+    api_id = credentials["telegram_api_id"]
+    api_hash = credentials["telegram_api_hash"]
+    session_string = decrypt_string(credentials["telegram_string_session"])
+    print(f"✅ Using Telegram credentials (API ID: {api_id})")
+    
     session_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "session")
     # Попробуем восстановить файловую сессию из TELEGRAM_SESSION_B64 (если задана)
     _ensure_telethon_session(session_path)

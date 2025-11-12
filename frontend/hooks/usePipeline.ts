@@ -11,6 +11,7 @@ type RunPipelineArgs = {
   periodHours: number | null;
   channelUrl: string | null;
   isTopPosts: boolean;
+  useUserCredentials?: boolean;
 };
 
 export const usePipeline = () => {
@@ -36,7 +37,13 @@ export const usePipeline = () => {
 
   const runMutation = useMutation<OkResponse, Error, RunPipelineArgs>({
     mutationFn: (args) =>
-      pipelineAPI.run(args.postLimit, args.periodHours, args.channelUrl, args.isTopPosts),
+      pipelineAPI.run(
+        args.postLimit, 
+        args.periodHours, 
+        args.channelUrl, 
+        args.isTopPosts,
+        args.useUserCredentials ?? false
+      ),
     onSuccess: (data) => {
       setSuccess(data.message || MESSAGES.SUCCESS.PIPELINE_STARTED);
       setError(null);
@@ -60,10 +67,22 @@ export const usePipeline = () => {
   });
 
   const runPipeline = useCallback(
-    async (postLimit: number, periodHours: number, channelUrl: string, isTopPosts: boolean) => {
+    async (
+      postLimit: number, 
+      periodHours: number, 
+      channelUrl: string, 
+      isTopPosts: boolean,
+      useUserCredentials: boolean = false
+    ) => {
       setSuccess(null);
       setError(null);
-      await runMutation.mutateAsync({ postLimit, periodHours, channelUrl, isTopPosts });
+      await runMutation.mutateAsync({ 
+        postLimit, 
+        periodHours, 
+        channelUrl, 
+        isTopPosts, 
+        useUserCredentials 
+      });
     },
     [runMutation]
   );

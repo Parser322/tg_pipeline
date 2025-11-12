@@ -73,3 +73,20 @@ export const loadLargeMedia = (
   mediaId: string
 ): Promise<OkResponse & { url?: string }> =>
   apiClient.post(`/posts/${postId}/media/${mediaId}/load-large`);
+
+// User Telegram Credentials API
+export const saveTelegramCredentials = (
+  credentials: import('@/types/api').TelegramCredentials
+): Promise<OkResponse> =>
+  apiClient.post('/user/telegram-credentials', credentials);
+
+export const getUserTelegramCredentials = (
+  signal?: AbortSignal
+): Promise<import('@/types/api').UserTelegramCredentialsResponse> =>
+  apiClient.get('/user/telegram-credentials', signal);
+
+export const deleteUserTelegramCredentials = (): Promise<OkResponse> =>
+  apiClient.delete('/user/telegram-credentials');
+
+export const validateTelegramCredentials = (): Promise<import('@/types/api').ValidateCredentialsResponse> =>
+  apiClient.post('/user/telegram-credentials/validate');

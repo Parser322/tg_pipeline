@@ -66,3 +66,28 @@ export type GetPostsResponse = {
   ok: boolean;
   posts: Post[];
 };
+
+// User Telegram Credentials types
+export type TelegramCredentials = {
+  telegram_api_id: number;
+  telegram_api_hash: string;
+  telegram_string_session: string;
+  phone_number?: string | null;
+  user_identifier?: string | null;
+};
+
+export type UserTelegramCredentialsResponse = {
+  ok: boolean;
+  has_credentials: boolean;
+  telegram_api_id?: number;
+  phone_number?: string | null;
+  created_at?: string | null;
+};
+
+export type ValidateCredentialsResponse = {
+  ok: boolean;
+  valid: boolean;
+  message: string;
+  username?: string | null;
+  phone?: string | null;
+};

@@ -634,3 +634,154 @@ def delete_saved_channel() -> bool:
         logger.error("Ошибка удаления канала в Supabase: %s", exc)
         return False
 
+
+# ===============================
+# User Telegram Credentials API
+# ===============================
+
+USER_CREDENTIALS_TABLE = "user_telegram_credentials"
+
+
+def save_user_telegram_credentials(
+    user_identifier: str,
+    telegram_api_id: int,
+    telegram_api_hash: str,
+    encrypted_session: str,
+    phone_number: Optional[str] = None
+) -> bool:
+    """
+    Сохраняет Telegram credentials пользователя в Supabase.
+    
+    Args:
+        user_identifier: Уникальный идентификатор пользователя (email, user_id, etc)
+        telegram_api_id: Telegram API ID
+        telegram_api_hash: Telegram API Hash
+        encrypted_session: Зашифрованная session string
+        phone_number: Опциональный номер телефона для справки
+        
+    Returns:
+        True если успешно сохранено, False иначе
+    """
+    try:
+        payload = {
+            "user_identifier": user_identifier,
+            "telegram_api_id": telegram_api_id,
+            "telegram_api_hash": telegram_api_hash,
+            "telegram_string_session": encrypted_session,
+            "phone_number": phone_number,
+            "is_active": True
+        }
+        
+        # Пробуем обновить существующую запись или создать новую
+        response = (
+            _client()
+            .table(USER_CREDENTIALS_TABLE)
+            .upsert(payload, on_conflict="user_identifier")
+            .execute()
+        )
+        
+        if _has_error(response):
+            raise RuntimeError(getattr(response, "error", "Unknown Supabase error"))
+        
+        logger.info("Telegram credentials для пользователя %s сохранены.", user_identifier)
+        return True
+    except Exception as exc:
+        logger.error("Ошибка сохранения credentials пользователя %s: %s", user_identifier, exc)
+        return False
+
+
+def get_user_telegram_credentials(user_identifier: str) -> Optional[Dict[str, Any]]:
+    """
+    Получает Telegram credentials пользователя из Supabase.
+    
+    Args:
+        user_identifier: Уникальный идентификатор пользователя
+        
+    Returns:
+        Словарь с credentials или None если не найдено
+    """
+    try:
+        response = (
+            _client()
+            .table(USER_CREDENTIALS_TABLE)
+            .select("*")
+            .eq("user_identifier", user_identifier)
+            .eq("is_active", True)
+            .single()
+            .execute()
+        )
+        
+        if _has_error(response):
+            return None
+        
+        return response.data
+    except Exception as exc:
+        logger.error("Ошибка получения credentials пользователя %s: %s", user_identifier, exc)
+        return None
+
+
+def has_user_telegram_credentials(user_identifier: str) -> bool:
+    """
+    Проверяет, есть ли у пользователя сохраненные Telegram credentials.
+    
+    Args:
+        user_identifier: Уникальный идентификатор пользователя
+        
+    Returns:
+        True если credentials существуют и активны, False иначе
+    """
+    credentials = get_user_telegram_credentials(user_identifier)
+    return credentials is not None
+
+
+def delete_user_telegram_credentials(user_identifier: str) -> bool:
+    """
+    Деактивирует Telegram credentials пользователя (мягкое удаление).
+    
+    Args:
+        user_identifier: Уникальный идентификатор пользователя
+        
+    Returns:
+        True если успешно деактивировано, False иначе
+    """
+    try:
+        response = (
+            _client()
+            .table(USER_CREDENTIALS_TABLE)
+            .update({"is_active": False})
+            .eq("user_identifier", user_identifier)
+            .execute()
+        )
+        
+        if _has_error(response):
+            raise RuntimeError(getattr(response, "error", "Unknown Supabase error"))
+        
+        logger.info("Telegram credentials для пользователя %s деактивированы.", user_identifier)
+        return True
+    except Exception as exc:
+        logger.error("Ошибка деактивации credentials пользователя %s: %s", user_identifier, exc)
+        return False
+
+
+def validate_telegram_credentials_exist(user_identifier: str) -> tuple[bool, Optional[str]]:
+    """
+    Проверяет наличие и валидность credentials пользователя.
+    
+    Args:
+        user_identifier: Уникальный идентификатор пользователя
+        
+    Returns:
+        Кортеж (is_valid, error_message)
+    """
+    credentials = get_user_telegram_credentials(user_identifier)
+    
+    if not credentials:
+        return False, "Telegram credentials не найдены. Добавьте их в настройках."
+    
+    required_fields = ["telegram_api_id", "telegram_api_hash", "telegram_string_session"]
+    for field in required_fields:
+        if not credentials.get(field):
+            return False, f"Некорректные credentials: отсутствует {field}"
+    
+    return True, None
+

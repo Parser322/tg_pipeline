@@ -21,3 +21,6 @@ supabase>=2.4.0
 # OpenAI for translations
 openai>=1.10.0
 
+# Encryption for user credentials
+cryptography>=42.0.0
+

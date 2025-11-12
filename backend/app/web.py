@@ -199,18 +199,32 @@ async def status_endpoint():
     """Возвращает текущее состояние прогресса."""
     return get_state()
 
-async def run_pipeline_task(limit: int, period_hours: int | None = None, channel_url: str | None = None, is_top_posts: bool = False):
+async def run_pipeline_task(
+    limit: int, 
+    period_hours: int | None = None, 
+    channel_url: str | None = None, 
+    is_top_posts: bool = False,
+    user_identifier: str | None = None
+):
     """Обёртка для запуска задачи и управления состоянием."""
     global current_task
     set_running(True)
     try:
-        print(f"Starting pipeline with limit: {limit}, channel: {channel_url or 'from config'}, top_posts: {is_top_posts}")
-        await run_pipeline_main(limit=limit, period_hours=period_hours, channel_url=channel_url, is_top_posts=is_top_posts)
+        print(f"Starting pipeline with limit: {limit}, channel: {channel_url or 'from config'}, top_posts: {is_top_posts}, user: {user_identifier}")
+        await run_pipeline_main(
+            limit=limit, 
+            period_hours=period_hours, 
+            channel_url=channel_url, 
+            is_top_posts=is_top_posts,
+            user_identifier=user_identifier
+        )
         print("Pipeline finished successfully.")
     except asyncio.CancelledError:
         print("Pipeline task was cancelled.")
     except Exception as e:
         print(f"An error occurred in pipeline: {e}")
+        import traceback
+        traceback.print_exc()
     finally:
         set_running(False)
         set_finished(True) # Устанавливаем флаг завершения
@@ -228,10 +242,20 @@ async def trigger_pipeline(request: Request):
     period_hours = data.get("period_hours")
     channel_url = _normalize_channel_identifier(data.get("channel_url"))
     is_top_posts = data.get("is_top_posts", False)
+    use_user_credentials = data.get("use_user_credentials", False)
+    user_identifier_param = data.get("user_identifier")
 
-    ok, err = _telegram_env_check()
-    if not ok:
-        return JSONResponse(status_code=400, content={"ok": False, "error": err})
+    # User credentials теперь обязательны
+    user_identifier = _get_user_identifier(user_identifier_param)
+    
+    # Проверяем наличие credentials у пользователя
+    from app.supabase_manager import validate_telegram_credentials_exist
+    is_valid, error_msg = validate_telegram_credentials_exist(user_identifier)
+    if not is_valid:
+        return JSONResponse(
+            status_code=400, 
+            content={"ok": False, "error": error_msg}
+        )
 
     # Сбрасываем состояние перед новым запуском
     reset_state()
@@ -240,7 +264,8 @@ async def trigger_pipeline(request: Request):
         limit=limit, 
         period_hours=period_hours,
         channel_url=channel_url,
-        is_top_posts=is_top_posts
+        is_top_posts=is_top_posts,
+        user_identifier=user_identifier
     ))
     current_task = task
     
@@ -512,6 +537,193 @@ async def delete_current_channel_endpoint():
         print(f"Delete current channel endpoint error: {e}")
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
 
+
+# --- Эндпоинты для работы с User Telegram Credentials ---
+
+class TelegramCredentialsPayload(BaseModel):
+    telegram_api_id: int
+    telegram_api_hash: str
+    telegram_string_session: str
+    phone_number: str | None = None
+    user_identifier: str | None = None  # Опционально: если не передан, используется дефолтный
+
+def _get_user_identifier(payload_identifier: str | None = None) -> str:
+    """
+    Получает идентификатор пользователя.
+    В production здесь должна быть аутентификация (JWT, session, etc).
+    Пока используем простой identifier или дефолтный.
+    """
+    # TODO: В production получать из JWT токена или сессии
+    # from fastapi import Depends
+    # current_user = Depends(get_current_user)
+    # return current_user.id
+    
+    if payload_identifier:
+        return payload_identifier
+    
+    # Дефолтный пользователь для demo/dev режима
+    return os.getenv("DEFAULT_USER_ID", "demo-user")
+
+@app.post("/user/telegram-credentials")
+async def save_user_telegram_credentials_endpoint(payload: TelegramCredentialsPayload):
+    """
+    Сохраняет Telegram API credentials пользователя.
+    Credentials шифруются перед сохранением в БД.
+    """
+    try:
+        from app.crypto_utils import encrypt_string
+        from app.supabase_manager import save_user_telegram_credentials
+        
+        user_identifier = _get_user_identifier(payload.user_identifier)
+        
+        # Шифруем session перед сохранением
+        encrypted_session = encrypt_string(payload.telegram_string_session)
+        
+        success = save_user_telegram_credentials(
+            user_identifier=user_identifier,
+            telegram_api_id=payload.telegram_api_id,
+            telegram_api_hash=payload.telegram_api_hash,
+            encrypted_session=encrypted_session,
+            phone_number=payload.phone_number
+        )
+        
+        if success:
+            return {"ok": True, "message": "Telegram credentials сохранены успешно"}
+        else:
+            return JSONResponse(
+                status_code=500,
+                content={"ok": False, "error": "Не удалось сохранить credentials"}
+            )
+    except Exception as e:
+        print(f"Save telegram credentials error: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"ok": False, "error": str(e)}
+        )
+
+@app.get("/user/telegram-credentials")
+async def get_user_telegram_credentials_endpoint(user_identifier: str | None = None):
+    """
+    Проверяет наличие Telegram credentials у пользователя.
+    Возвращает только факт наличия и API ID (без чувствительных данных).
+    """
+    try:
+        from app.supabase_manager import get_user_telegram_credentials
+        
+        user_id = _get_user_identifier(user_identifier)
+        credentials = get_user_telegram_credentials(user_id)
+        
+        if credentials:
+            return {
+                "ok": True,
+                "has_credentials": True,
+                "telegram_api_id": credentials.get("telegram_api_id"),
+                "phone_number": credentials.get("phone_number"),
+                "created_at": credentials.get("created_at")
+            }
+        else:
+            return {
+                "ok": True,
+                "has_credentials": False
+            }
+    except Exception as e:
+        print(f"Get telegram credentials error: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"ok": False, "error": str(e)}
+        )
+
+@app.delete("/user/telegram-credentials")
+async def delete_user_telegram_credentials_endpoint(user_identifier: str | None = None):
+    """Удаляет (деактивирует) Telegram credentials пользователя."""
+    try:
+        from app.supabase_manager import delete_user_telegram_credentials
+        
+        user_id = _get_user_identifier(user_identifier)
+        success = delete_user_telegram_credentials(user_id)
+        
+        if success:
+            return {"ok": True, "message": "Credentials удалены успешно"}
+        else:
+            return JSONResponse(
+                status_code=404,
+                content={"ok": False, "error": "Credentials не найдены"}
+            )
+    except Exception as e:
+        print(f"Delete telegram credentials error: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"ok": False, "error": str(e)}
+        )
+
+@app.post("/user/telegram-credentials/validate")
+async def validate_telegram_credentials_endpoint(user_identifier: str | None = None):
+    """
+    Проверяет валидность сохраненных Telegram credentials,
+    пытаясь подключиться к Telegram API.
+    """
+    try:
+        from app.supabase_manager import get_user_telegram_credentials
+        from app.crypto_utils import decrypt_string
+        from telethon import TelegramClient
+        from telethon.sessions import StringSession
+        
+        user_id = _get_user_identifier(user_identifier)
+        credentials = get_user_telegram_credentials(user_id)
+        
+        if not credentials:
+            return JSONResponse(
+                status_code=404,
+                content={"ok": False, "error": "Credentials не найдены"}
+            )
+        
+        # Расшифровываем session
+        decrypted_session = decrypt_string(credentials["telegram_string_session"])
+        
+        # Пробуем подключиться
+        client = TelegramClient(
+            StringSession(decrypted_session),
+            credentials["telegram_api_id"],
+            credentials["telegram_api_hash"]
+        )
+        
+        try:
+            await client.connect()
+            if await client.is_user_authorized():
+                me = await client.get_me()
+                await client.disconnect()
+                return {
+                    "ok": True,
+                    "valid": True,
+                    "message": f"Credentials валидны. Подключен как {me.first_name}",
+                    "username": me.username,
+                    "phone": me.phone
+                }
+            else:
+                await client.disconnect()
+                return {
+                    "ok": True,
+                    "valid": False,
+                    "message": "Пользователь не авторизован в Telegram"
+                }
+        except Exception as conn_error:
+            if client.is_connected():
+                await client.disconnect()
+            return {
+                "ok": True,
+                "valid": False,
+                "message": f"Ошибка подключения: {str(conn_error)}"
+            }
+    except Exception as e:
+        print(f"Validate telegram credentials error: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"ok": False, "error": str(e)}
+        )
 
 
 # Диагностический эндпоинт: простая отправка текста в канал

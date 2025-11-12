@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Newspaper } from 'lucide-react';
+import { Home, Newspaper, Settings } from 'lucide-react';
 import { type ComponentType } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -43,6 +43,7 @@ export default function NavBar() {
       <nav className='flex flex-col gap-1'>
         <NavItem href='/' label='Главная' icon={Home} />
         <NavItem href='/posts' label='Посты' icon={Newspaper} />
+        <NavItem href='/settings' label='Настройки' icon={Settings} />
       </nav>
     </div>
   );
