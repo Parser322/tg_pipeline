@@ -70,7 +70,7 @@ export default function Dashboard() {
     <div className='min-h-screen bg-background'>
       <div>
         <div className='mb-4'>
-          <h1 className='text-xl md:text-2xl font-bold mb-1'>Панель управления парсером</h1>
+          <h1 className='text-xl md:text-2xl font-bold mb-1'>Панель управления</h1>
         </div>
 
         <Card className='shadow-sm rounded-lg'>
