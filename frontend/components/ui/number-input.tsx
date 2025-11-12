@@ -65,14 +65,14 @@ const NumberInput = React.forwardRef<HTMLDivElement, NumberInputProps>(
             min={min}
             max={max}
             disabled={disabled}
-            className='flex h-9 w-16 rounded-md border border-input bg-background px-2 py-1.5 text-sm text-center shadow-xs transition-[color,box-shadow] ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [-moz-appearance:textfield]'
+            className='flex h-8 w-16 rounded-md border border-input bg-background px-2 py-1.5 text-sm text-center shadow-xs transition-[color,box-shadow] ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [-moz-appearance:textfield]'
           />
 
           <Button
             type='button'
             variant='outline'
             size='sm'
-            className='h-9 w-8 p-0'
+            className='w-8 p-0'
             onClick={handleDecrement}
             disabled={disabled || value <= (min as number)}
           >
@@ -83,7 +83,7 @@ const NumberInput = React.forwardRef<HTMLDivElement, NumberInputProps>(
             type='button'
             variant='outline'
             size='sm'
-            className='h-9 w-8 p-0'
+            className='w-8 p-0'
             onClick={handleIncrement}
             disabled={disabled || value >= (max as number)}
           >

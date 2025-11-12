@@ -18,7 +18,6 @@ export const ControlButtons = ({ onRun, onStop, isRunning, disabled, loading }: 
         size='icon'
         variant={isRunning ? 'destructive' : 'default'}
         className={cn(
-          'h-9 w-9',
           !isRunning && 'bg-green-500 text-white hover:bg-green-600'
         )}
         aria-label={isRunning ? 'Остановка...' : 'Запуск...'}
@@ -35,7 +34,6 @@ export const ControlButtons = ({ onRun, onStop, isRunning, disabled, loading }: 
         onClick={onStop}
         variant='destructive'
         size='icon'
-        className='h-9 w-9'
         aria-label='Остановить парсер'
         title='Остановить'
       >
@@ -50,7 +48,7 @@ export const ControlButtons = ({ onRun, onStop, isRunning, disabled, loading }: 
       disabled={disabled}
       size='icon'
       variant='default'
-      className='h-9 w-9 bg-green-500 text-white hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed'
+      className='bg-green-500 text-white hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed'
       aria-label='Запустить парсер'
       title='Запустить'
     >

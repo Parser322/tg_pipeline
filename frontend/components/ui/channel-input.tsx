@@ -71,7 +71,7 @@ const ChannelInput = React.forwardRef<HTMLDivElement, ChannelInputProps>(
             placeholder={placeholder}
             disabled={disabled}
             aria-label='Имя канала без @'
-            className='flex h-9 flex-1 bg-transparent pl-1 pr-3 py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50'
+            className='flex h-8 flex-1 bg-transparent pl-1 pr-3 py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50'
           />
           <div className='flex items-center pr-1'>
             <Button

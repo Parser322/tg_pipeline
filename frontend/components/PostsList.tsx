@@ -77,7 +77,6 @@ export default function PostsList() {
                 <Button
                   variant='destructive'
                   size='icon'
-                  className='h-9 w-9'
                   aria-label='Очистить все'
                   title='Очистить все'
                 >

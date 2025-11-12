@@ -231,7 +231,6 @@ export default function PostCard({ post, onTranslate, onDelete }: PostCardProps)
               onClick={handleTranslateClick}
               size='icon'
               variant='outline'
-              className='h-9 w-9'
               aria-label='Перевести на английский'
               title='Перевести на английский'
             >
@@ -243,7 +242,6 @@ export default function PostCard({ post, onTranslate, onDelete }: PostCardProps)
               <Button
                 size='icon'
                 variant='destructive'
-                className='h-9 w-9'
                 aria-label='Удалить пост'
                 title='Удалить пост'
               >
