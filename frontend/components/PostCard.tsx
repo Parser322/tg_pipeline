@@ -88,10 +88,11 @@ export default function PostCard({ post, onTranslate, onDelete }: PostCardProps)
     const title = post.channel_title || post.source_channel;
     const username =
       post.channel_username || post.source_channel.replace('@', '').replace('t.me/', '');
-    const channelUrl = `https://t.me/${username}`;
+    const postUrl = `https://t.me/${username}/${post.original_message_id}`;
+    const displayUrl = `t.me/${username}/${post.original_message_id}`;
 
-    return { title, channelUrl };
-  }, [post.channel_title, post.channel_username, post.source_channel]);
+    return { title, postUrl, displayUrl };
+  }, [post.channel_title, post.channel_username, post.source_channel, post.original_message_id]);
 
   return (
     <Card className='hover:shadow-md transition-shadow rounded-lg'>
@@ -101,12 +102,12 @@ export default function PostCard({ post, onTranslate, onDelete }: PostCardProps)
             <p className='text-sm font-semibold truncate'>
               {channelDisplay.title}{' '}
               <a
-                href={channelDisplay.channelUrl}
+                href={channelDisplay.postUrl}
                 target='_blank'
                 rel='noopener noreferrer'
                 className='text-xs text-muted-foreground hover:text-primary transition-colors'
               >
-                ({channelDisplay.channelUrl})
+                {channelDisplay.displayUrl}
               </a>
             </p>
             <div className='flex flex-col gap-0 mt-0.5'>
