@@ -21,6 +21,11 @@ export type MediaItem = {
   height?: number | null;
   duration?: number | null;
   order_index?: number | null;
+  file_size_bytes?: number | null;
+  is_oversized?: boolean;
+  is_loaded?: boolean;
+  telegram_message_id?: number | null;
+  telegram_channel?: string | null;
 };
 
 export type ChannelInfo = {

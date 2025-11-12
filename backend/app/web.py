@@ -334,6 +334,110 @@ async def translate_post_endpoint(post_id: str, payload: ManualTranslationPayloa
         print(f"Manual translation endpoint error: {e}")
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
 
+@app.post("/posts/{post_id}/media/{media_id}/load-large")
+async def load_large_media_endpoint(post_id: str, media_id: str):
+    """Загружает большой медиафайл по требованию."""
+    try:
+        from app.supabase_manager import get_media_item, update_media_item, upload_media_files
+        from telethon import TelegramClient
+        from telethon.sessions import StringSession
+        import os
+        import pathlib
+        from app.main import download_and_brand, _get_telegram_credentials, OUT
+        
+        # Получаем информацию о медиафайле
+        media_item = get_media_item(media_id)
+        if not media_item:
+            return JSONResponse(status_code=404, content={"ok": False, "error": "Media item not found"})
+        
+        if not media_item.get('is_oversized'):
+            return JSONResponse(status_code=400, content={"ok": False, "error": "Media item is not oversized"})
+        
+        if media_item.get('is_loaded'):
+            return JSONResponse(status_code=200, content={"ok": True, "message": "Media already loaded", "url": media_item.get('url')})
+        
+        telegram_channel = media_item.get('telegram_channel')
+        telegram_message_id = media_item.get('telegram_message_id')
+        
+        if not telegram_channel or not telegram_message_id:
+            return JSONResponse(status_code=400, content={"ok": False, "error": "Missing telegram info"})
+        
+        # Подключаемся к Telegram
+        api_id, api_hash = _get_telegram_credentials()
+        session_string = os.getenv("TELEGRAM_STRING_SESSION")
+        session_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "session")
+        
+        client = None
+        if session_string:
+            client = TelegramClient(StringSession(session_string), api_id, api_hash)
+        else:
+            client = TelegramClient(session_path, api_id, api_hash)
+        
+        try:
+            await client.start()
+            
+            # Получаем сообщение из Telegram
+            entity = await client.get_entity(telegram_channel)
+            message = await client.get_messages(entity, ids=telegram_message_id)
+            
+            if not message or not message.media:
+                return JSONResponse(status_code=404, content={"ok": False, "error": "Message not found in Telegram"})
+            
+            # Загружаем медиа (без ограничения размера)
+            print(f"Loading large media from message {telegram_message_id}...")
+            raw = await client.download_media(message)
+            
+            if not raw:
+                return JSONResponse(status_code=500, content={"ok": False, "error": "Failed to download media"})
+            
+            # Обрабатываем файл (брендирование)
+            from app.main import brand_video, add_logo_image, CFG
+            processed_path = raw
+            
+            # Определяем тип медиа
+            low = raw.lower()
+            if low.endswith((".mp4", ".mov", ".mkv", ".webm", ".m4v")):
+                processed_path = brand_video(raw, CFG["logo"]["path"])
+            elif low.endswith((".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff")):
+                processed_path = add_logo_image(raw, CFG["logo"]["path"], CFG["logo"]["position"], CFG["logo"]["margin"])
+                try:
+                    os.remove(raw)
+                except:
+                    pass
+            
+            # Загружаем в Supabase Storage
+            uploaded = upload_media_files([processed_path], telegram_channel, telegram_message_id)
+            
+            if uploaded and len(uploaded) > 0:
+                uploaded_item = uploaded[0]
+                # Обновляем запись в БД
+                update_media_item(media_id, {
+                    "url": uploaded_item.get('url'),
+                    "storage_path": uploaded_item.get('storage_path'),
+                    "mime_type": uploaded_item.get('mime_type'),
+                    "is_loaded": True,
+                })
+                
+                # Чистим временные файлы
+                try:
+                    pathlib.Path(processed_path).unlink(missing_ok=True)
+                except:
+                    pass
+                
+                return {"ok": True, "message": "Large media loaded successfully", "url": uploaded_item.get('url')}
+            else:
+                return JSONResponse(status_code=500, content={"ok": False, "error": "Failed to upload media to storage"})
+            
+        finally:
+            if client.is_connected():
+                await client.disconnect()
+        
+    except Exception as e:
+        print(f"Load large media endpoint error: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+
 @app.delete("/posts/{post_id}")
 async def delete_post_endpoint(post_id: str):
     """Удаляет конкретный пост по ID."""

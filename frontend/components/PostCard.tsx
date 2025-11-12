@@ -14,6 +14,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from './ui/alert-dialog';
+import { OversizedMediaPlaceholder } from './OversizedMediaPlaceholder';
 import type { Post, MediaItem } from '@/types/api';
 import { Eye, Star, Languages, Trash2, MessageSquare, Sparkles, Smile, ChevronDown, Calendar } from 'lucide-react';
 import { formatPostDate } from '@/lib/dateUtils';
@@ -39,11 +40,16 @@ function isGifMedia(m: MediaItem): boolean {
 export default function PostCard({ post, onTranslate, onDelete }: PostCardProps) {
   const [activeTab, setActiveTab] = useState<'original' | 'translated'>('original');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   
   const firstMedia = useMemo(
     () => (post.media && post.media.length > 0 ? post.media[0] : undefined),
     [post.media]
   );
+
+  const handleMediaLoad = useCallback((newUrl: string) => {
+    setMediaUrl(newUrl);
+  }, []);
 
   const handleDeleteConfirm = useCallback(() => {
     onDelete(post.id);
@@ -108,16 +114,24 @@ export default function PostCard({ post, onTranslate, onDelete }: PostCardProps)
         </div>
         {firstMedia ? (
           <div className='relative h-64 md:h-80 3xl:h-96 rounded-md overflow-hidden border bg-muted'>
-            {isVideoMedia(firstMedia) ? (
+            {firstMedia.is_oversized && !firstMedia.is_loaded ? (
+              <OversizedMediaPlaceholder
+                mediaId={firstMedia.id}
+                postId={post.id}
+                mediaType={firstMedia.media_type as "image" | "video" | "gif"}
+                fileSizeBytes={firstMedia.file_size_bytes || 0}
+                onLoad={handleMediaLoad}
+              />
+            ) : isVideoMedia(firstMedia) ? (
               <video
-                src={firstMedia.url}
+                src={mediaUrl || firstMedia.url}
                 controls
                 preload='metadata'
                 className='w-full h-full object-contain bg-black'
               />
             ) : (
               <Image
-                src={firstMedia.url}
+                src={mediaUrl || firstMedia.url}
                 alt={`Media from ${post.source_channel}`}
                 fill
                 className='object-contain'

@@ -96,22 +96,61 @@ def brand_video(video_path: str, logo_path: str) -> str:
     try:
         cmd = ["ffmpeg","-y","-i", str(video_path), "-i", logo_path,
                "-filter_complex","overlay=W-w-24:H-h-24","-codec:a","copy", str(out)]
-        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        # Добавляем таймаут 10 минут для обработки видео
+        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=600)
         return str(out)
+    except subprocess.TimeoutExpired:
+        print(f"TIMEOUT: Video branding exceeded 10 minutes for {video_path}. Using original video.")
+        dst = OUT / src.name
+        if src.resolve() != dst.resolve(): shutil.move(str(src), str(dst))
+        return str(dst)
     except Exception as e:
         print("Video branding error:", e)
         dst = OUT / src.name
         if src.resolve() != dst.resolve(): shutil.move(str(src), str(dst))
         return str(dst)
 
+async def get_media_size(message) -> int:
+    """Получить размер медиа файла в байтах без загрузки."""
+    try:
+        if hasattr(message.media, 'photo'):
+            # Для фото берем самый большой размер
+            sizes = getattr(message.media.photo, 'sizes', [])
+            if sizes:
+                return max(getattr(s, 'size', 0) for s in sizes if hasattr(s, 'size'))
+        elif hasattr(message.media, 'document'):
+            doc = message.media.document
+            if doc:
+                return getattr(doc, 'size', 0)
+    except Exception as e:
+        print(f"Error getting media size for message {message.id}: {e}")
+    return 0
+
 async def download_and_brand(client, message):
     """Скачать медиа из сообщения и вернуть список путей к обработанным файлам."""
     paths = []
     if not message.media:
         return paths
+    
+    # Проверяем размер файла перед загрузкой (лимит 200MB)
+    MAX_SIZE_BYTES = 200 * 1024 * 1024  # 200 МБ
+    file_size = await get_media_size(message)
+    
+    if file_size > MAX_SIZE_BYTES:
+        print(f"SKIP: Media file from message {message.id} is too large ({file_size / 1024 / 1024:.2f} MB > 200 MB). Creating placeholder.")
+        # Возвращаем специальный маркер вместо пути к файлу
+        return [{
+            'type': 'oversized',
+            'size': file_size,
+            'message_id': message.id,
+            'media_type': 'video' if hasattr(message.media, 'document') and 
+                          getattr(message.media.document, 'mime_type', '').startswith('video/') else 'image'
+        }]
+    
     try:
-        print(f"Downloading media from message {message.id}, media type: {type(message.media).__name__}")
-        raw = await client.download_media(message)
+        print(f"Downloading media from message {message.id}, media type: {type(message.media).__name__}, size: {file_size / 1024 / 1024:.2f} MB")
+        # Добавляем таймаут 5 минут для загрузки медиа
+        raw = await asyncio.wait_for(client.download_media(message), timeout=300)
         if raw:
             print(f"Downloaded file: {raw}")
             low = raw.lower()
@@ -150,6 +189,10 @@ async def download_and_brand(client, message):
                 paths.append(str(dst))
             
             print(f"Media paths collected: {paths}")
+    except asyncio.TimeoutError:
+        print(f"TIMEOUT: Media download exceeded 5 minutes for message {message.id}. Skipping this media.")
+        import traceback
+        traceback.print_exc()
     except Exception as e:
         print(f"Media download error for message {message.id}: {e}")
         import traceback
@@ -402,9 +445,22 @@ async def process_top_posts(client: TelegramClient, ch: str, period_days: float,
                 break
 
         # Скачиваем и брендируем все медиа из альбома
-        media_paths = []
+        media_results = []
+        print(f"Processing post {root_id}: downloading media from {len(group_members)} message(s)...")
         for gm in group_members:
-            media_paths.extend(await download_and_brand(client, gm))
+            results = await download_and_brand(client, gm)
+            media_results.extend(results)
+        
+        # Разделяем обычные файлы и заглушки больших файлов
+        media_paths = []
+        oversized_items = []
+        for item in media_results:
+            if isinstance(item, dict) and item.get('type') == 'oversized':
+                oversized_items.append(item)
+            else:
+                media_paths.append(item)
+        
+        print(f"Post {root_id}: collected {len(media_paths)} media file(s), {len(oversized_items)} oversized placeholder(s)")
 
         root_msg = group_members[0]
         root_id = root_msg.id
@@ -447,15 +503,28 @@ async def process_top_posts(client: TelegramClient, ch: str, period_days: float,
         post_id = save_post(post_to_save)
         if post_id:
             # Пост успешно сохранен
+            all_media_items = []
+            
+            # Загружаем обычные файлы
             if media_paths:
                 media_items = upload_media_files(media_paths, ch, root_id)
                 if media_items:
-                    save_post_media(post_id, media_items)
+                    all_media_items.extend(media_items)
+            
+            # Добавляем заглушки для больших файлов
+            if oversized_items:
+                from app.supabase_manager import create_oversized_media_placeholders
+                oversized_media = create_oversized_media_placeholders(oversized_items, ch, len(all_media_items))
+                all_media_items.extend(oversized_media)
+            
+            # Сохраняем все медиа
+            if all_media_items:
+                save_post_media(post_id, all_media_items)
                 # Обновляем фактические флаги/счетчики медиа у поста
                 try:
                     update_post(post_id, {
-                        "has_media": bool(media_items),
-                        "media_count": len(media_items or []),
+                        "has_media": bool(all_media_items),
+                        "media_count": len(all_media_items),
                     })
                 except Exception:
                     pass
@@ -509,9 +578,22 @@ async def process_channel(client: TelegramClient, ch: str, limit: int):
                 break
 
         # Скачиваем и брендируем все медиа из группы
-        media_paths = []
+        media_results = []
+        print(f"Processing post {root_msg.id}: downloading media from {len(group)} message(s)...")
         for gm in group:
-            media_paths.extend(await download_and_brand(client, gm))
+            results = await download_and_brand(client, gm)
+            media_results.extend(results)
+        
+        # Разделяем обычные файлы и заглушки больших файлов
+        media_paths = []
+        oversized_items = []
+        for item in media_results:
+            if isinstance(item, dict) and item.get('type') == 'oversized':
+                oversized_items.append(item)
+            else:
+                media_paths.append(item)
+        
+        print(f"Post {root_msg.id}: collected {len(media_paths)} media file(s), {len(oversized_items)} oversized placeholder(s)")
 
         root_msg = group[0]
         root_id = root_msg.id
@@ -548,15 +630,28 @@ async def process_channel(client: TelegramClient, ch: str, limit: int):
         post_id = save_post(post_to_save)
         if post_id:
             # Пост успешно сохранен
+            all_media_items = []
+            
+            # Загружаем обычные файлы
             if media_paths:
                 media_items = upload_media_files(media_paths, ch, root_id)
                 if media_items:
-                    save_post_media(post_id, media_items)
+                    all_media_items.extend(media_items)
+            
+            # Добавляем заглушки для больших файлов
+            if oversized_items:
+                from app.supabase_manager import create_oversized_media_placeholders
+                oversized_media = create_oversized_media_placeholders(oversized_items, ch, len(all_media_items))
+                all_media_items.extend(oversized_media)
+            
+            # Сохраняем все медиа
+            if all_media_items:
+                save_post_media(post_id, all_media_items)
                 # Обновляем фактические флаги/счетчики медиа у поста
                 try:
                     update_post(post_id, {
-                        "has_media": bool(media_items),
-                        "media_count": len(media_items or []),
+                        "has_media": bool(all_media_items),
+                        "media_count": len(all_media_items),
                     })
                 except Exception:
                     pass

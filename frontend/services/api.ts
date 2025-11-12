@@ -67,3 +67,9 @@ export const checkChannel = (
 
 export const deleteCurrentChannel = (): Promise<OkResponse> =>
   apiClient.delete('/channels/current');
+
+export const loadLargeMedia = (
+  postId: string,
+  mediaId: string
+): Promise<OkResponse & { url?: string }> =>
+  apiClient.post(`/posts/${postId}/media/${mediaId}/load-large`);

@@ -218,6 +218,48 @@ def _guess_mime_type(path: str) -> Tuple[str, str]:
     return mime, media_type
 
 
+def create_oversized_media_placeholders(oversized_items: List[Dict[str, Any]], channel: str, start_order_index: int = 0) -> List[Dict[str, Any]]:
+    """
+    Создает заглушки для больших файлов (>200MB) без загрузки.
+    
+    Args:
+        oversized_items: Список словарей с информацией о больших файлах
+        channel: Канал Telegram
+        start_order_index: Начальный индекс для order_index
+        
+    Returns:
+        Список метаданных для сохранения в БД
+    """
+    results: List[Dict[str, Any]] = []
+    
+    for idx, item in enumerate(oversized_items):
+        file_size = item.get('size', 0)
+        message_id = item.get('message_id')
+        media_type = item.get('media_type', 'video')
+        
+        logger.info(f"Creating placeholder for oversized {media_type} ({file_size / 1024 / 1024:.2f} MB) from message {message_id}")
+        
+        # URL для заглушки - будет обработан на фронтенде
+        placeholder_url = f"oversized://{channel}/{message_id}"
+        
+        results.append({
+            "media_type": media_type,
+            "mime_type": f"{media_type}/placeholder",
+            "url": placeholder_url,
+            "storage_path": None,
+            "width": None,
+            "height": None,
+            "duration": None,
+            "order_index": start_order_index + idx,
+            "file_size_bytes": file_size,
+            "is_oversized": True,
+            "is_loaded": False,
+            "telegram_message_id": message_id,
+            "telegram_channel": channel,
+        })
+    
+    return results
+
 def upload_media_files(local_paths: List[str], channel: str, original_message_id: int | str) -> List[Dict[str, Any]]:
     """
     Загружает файлы в Storage и возвращает метаданные для сохранения в БД.
@@ -255,14 +297,27 @@ def upload_media_files(local_paths: List[str], channel: str, original_message_id
                 # В storage-py параметры upload передаются как HTTP-заголовки.
                 # Нельзя передавать bool, иначе httpx ругается: "Header value must be str or bytes".
                 # Используем корректные заголовки: content-type и x-upsert: "true".
-                storage.upload(
-                    file=f,
-                    path=dest_path,
-                    file_options={
-                        "content-type": mime,
-                        "x-upsert": "true",
-                    },
-                )
+                import signal
+                
+                def timeout_handler(signum, frame):
+                    raise TimeoutError("Upload to Supabase Storage exceeded timeout")
+                
+                # Устанавливаем таймаут 5 минут для загрузки
+                old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+                signal.alarm(300)  # 5 минут
+                
+                try:
+                    storage.upload(
+                        file=f,
+                        path=dest_path,
+                        file_options={
+                            "content-type": mime,
+                            "x-upsert": "true",
+                        },
+                    )
+                finally:
+                    signal.alarm(0)  # Отменяем таймаут
+                    signal.signal(signal.SIGALRM, old_handler)
             
             public_url = storage.get_public_url(dest_path)
             logger.info(f"Successfully uploaded to: {public_url}")
@@ -277,6 +332,8 @@ def upload_media_files(local_paths: List[str], channel: str, original_message_id
                 "duration": None,
                 "order_index": idx,
             })
+        except TimeoutError as exc:
+            logger.error("TIMEOUT: Загрузка файла '%s' в Storage превысила 5 минут. Пропускаем.", local_path)
         except Exception as exc:
             # Если bucket отсутствует (404), пробуем создать и повторить один раз
             msg = str(exc)
@@ -284,14 +341,26 @@ def upload_media_files(local_paths: List[str], channel: str, original_message_id
                 try:
                     _ensure_media_bucket()
                     with open(local_path, "rb") as f:
-                        storage.upload(
-                            file=f,
-                            path=dest_path,
-                            file_options={
-                                "content-type": mime,
-                                "x-upsert": "true",
-                            },
-                        )
+                        import signal
+                        
+                        def timeout_handler(signum, frame):
+                            raise TimeoutError("Upload to Supabase Storage exceeded timeout")
+                        
+                        old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+                        signal.alarm(300)  # 5 минут
+                        
+                        try:
+                            storage.upload(
+                                file=f,
+                                path=dest_path,
+                                file_options={
+                                    "content-type": mime,
+                                    "x-upsert": "true",
+                                },
+                            )
+                        finally:
+                            signal.alarm(0)
+                            signal.signal(signal.SIGALRM, old_handler)
                     public_url = storage.get_public_url(dest_path)
                     results.append({
                         "media_type": media_type,
@@ -304,11 +373,41 @@ def upload_media_files(local_paths: List[str], channel: str, original_message_id
                         "order_index": idx,
                     })
                     continue
+                except TimeoutError:
+                    logger.error("TIMEOUT: Повторная загрузка файла '%s' превысила 5 минут. Пропускаем.", local_path)
                 except Exception as exc2:
                     logger.error("Повторная загрузка после создания bucket не удалась для '%s': %s", local_path, exc2)
-            logger.error("Ошибка загрузки файла '%s' в Storage: %s", local_path, exc)
+            else:
+                logger.error("Ошибка загрузки файла '%s' в Storage: %s", local_path, exc)
     return results
 
+
+def get_media_item(media_id: str) -> Optional[Dict[str, Any]]:
+    """Получает конкретный медиафайл по ID."""
+    if not media_id:
+        return None
+    try:
+        response = _client().table(MEDIA_TABLE).select("*").eq("id", media_id).limit(1).execute()
+        if _has_error(response):
+            raise RuntimeError(getattr(response, "error", "Unknown Supabase error"))
+        rows = response.data or []
+        return rows[0] if rows else None
+    except Exception as exc:
+        logger.error("Ошибка получения медиафайла %s из Supabase: %s", media_id, exc)
+        return None
+
+def update_media_item(media_id: str, updates: Dict[str, Any]) -> bool:
+    """Обновляет конкретный медиафайл."""
+    if not media_id or not updates:
+        return False
+    try:
+        response = _client().table(MEDIA_TABLE).update(updates).eq("id", media_id).execute()
+        if _has_error(response):
+            raise RuntimeError(getattr(response, "error", "Unknown Supabase error"))
+        return True
+    except Exception as exc:
+        logger.error("Ошибка обновления медиафайла %s в Supabase: %s", media_id, exc)
+        return False
 
 def save_post_media(post_id: str, media_items: List[Dict[str, Any]]) -> int:
     """
