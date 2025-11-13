@@ -33,6 +33,7 @@ export default function Dashboard() {
   });
 
   const hasUserCredentials = userCredsQuery.data?.has_credentials ?? false;
+  const shouldShowCredsAlert = userCredsQuery.isSuccess && !hasUserCredentials;
 
   const {
     channelUsername,
@@ -102,7 +103,7 @@ export default function Dashboard() {
     <div className='bg-background'>
       <div>
         {/* Предупреждение если нет credentials */}
-        {!hasUserCredentials && (
+        {shouldShowCredsAlert && (
           <Alert className='mb-4 border-orange-200 bg-orange-50'>
             <div className='flex items-start justify-between gap-4'>
               <div className='flex-1'>

@@ -6,7 +6,7 @@ import {
   IconBrandFacebook,
 } from '@tabler/icons-react';
 
-interface IconProps extends React.ComponentProps<'svg'> {
+interface IconProps extends Omit<React.ComponentProps<'svg'>, 'ref'> {
   size?: number;
   className?: string;
 }

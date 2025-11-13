@@ -316,6 +316,7 @@ export function TelegramCredentialsManager() {
   };
 
   const hasCredentials = credentialsQuery.data?.has_credentials ?? false;
+  const isCredsLoaded = credentialsQuery.isSuccess;
   const isLoading =
     credentialsQuery.isLoading ||
     sendCodeMutation.isPending ||
@@ -337,7 +338,7 @@ export function TelegramCredentialsManager() {
               {step === 'success' && 'Авторизация завершена!'}
             </p>
           </div>
-          {hasCredentials && step === 'view' && (
+          {isCredsLoaded && hasCredentials && step === 'view' && (
             <Badge variant='default' className='bg-green-600'>
               ✓ Сохранено
             </Badge>
@@ -345,7 +346,7 @@ export function TelegramCredentialsManager() {
         </div>
 
         {/* VIEW MODE - Показ существующих credentials */}
-        {step === 'view' && hasCredentials && (
+        {isCredsLoaded && step === 'view' && hasCredentials && (
           <div className='space-y-3'>
             <Alert>
               <div className='space-y-2'>
@@ -389,7 +390,7 @@ export function TelegramCredentialsManager() {
           </div>
         )}
 
-        {step === 'view' && !hasCredentials && (
+        {isCredsLoaded && step === 'view' && !hasCredentials && (
           <div className='space-y-3'>
             <Alert>
               <p className='text-sm'>
