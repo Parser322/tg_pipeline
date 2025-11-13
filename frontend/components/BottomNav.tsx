@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Newspaper, Settings } from 'lucide-react';
+import { IconGauge, IconListDetails, IconSettings } from '@tabler/icons-react';
 import { type ComponentType } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -12,9 +12,9 @@ type NavItem = {
 };
 
 const NAV_ITEMS: NavItem[] = [
-  { href: '/', label: 'Главная', icon: Home },
-  { href: '/posts', label: 'Посты', icon: Newspaper },
-  { href: '/settings', label: 'Настройки', icon: Settings },
+  { href: '/', label: 'Главная', icon: IconGauge },
+  { href: '/posts', label: 'Посты', icon: IconListDetails },
+  { href: '/settings', label: 'Настройки', icon: IconSettings },
 ];
 
 export default function BottomNav() {

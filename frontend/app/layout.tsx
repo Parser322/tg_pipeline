@@ -3,6 +3,7 @@ import Providers from './providers';
 import { AppSidebar } from '@/components/app-sidebar';
 import { SiteHeader } from '@/components/site-header';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
+import { Separator } from '@/components/ui/separator';
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 
@@ -50,6 +51,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <AppSidebar variant='inset' />
             <SidebarInset>
               <SiteHeader />
+              <Separator />
               <div className='flex flex-1 flex-col'>
                 <div className='@container/main flex flex-1 flex-col gap-2'>
                   <div className='flex flex-col gap-4 py-4 md:gap-6 md:py-6'>

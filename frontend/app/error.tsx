@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { AlertCircle } from 'lucide-react';
+import { IconAlertCircle } from '@tabler/icons-react';
 
 type ErrorProps = {
   error: Error & { digest?: string };
@@ -21,7 +21,7 @@ export default function Error({ error, reset }: ErrorProps) {
       <Card className='max-w-md w-full shadow-lg'>
         <CardHeader className='text-center'>
           <div className='flex justify-center mb-4'>
-            <AlertCircle className='h-16 w-16 text-destructive' />
+            <IconAlertCircle className='h-16 w-16 text-destructive' />
           </div>
           <CardTitle className='text-2xl'>Что-то пошло не так</CardTitle>
         </CardHeader>

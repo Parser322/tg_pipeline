@@ -87,9 +87,27 @@ body {
 
 @layer base {
   * {
-    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
+    @apply focus-visible:outline-none;
   }
   html {
     @apply font-sans;
   }
+}
+
+/* Disable any default focus outline/ring globally */
+*:focus,
+*:focus-visible,
+*:focus-within {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Firefox inner focus border reset */
+::-moz-focus-inner {
+  border: 0;
+}
+
+/* Remove tap highlight on mobile Safari/Chrome */
+html {
+  -webkit-tap-highlight-color: transparent;
 }

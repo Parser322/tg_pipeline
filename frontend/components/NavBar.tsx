@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Newspaper, Settings } from 'lucide-react';
+import { IconGauge, IconListDetails, IconSettings } from '@tabler/icons-react';
 import { type ComponentType } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -41,9 +41,9 @@ export default function NavBar() {
         </Link>
       </div>
       <nav className='flex flex-col gap-1'>
-        <NavItem href='/' label='Главная' icon={Home} />
-        <NavItem href='/posts' label='Посты' icon={Newspaper} />
-        <NavItem href='/settings' label='Настройки' icon={Settings} />
+        <NavItem href='/' label='Главная' icon={IconGauge} />
+        <NavItem href='/posts' label='Посты' icon={IconListDetails} />
+        <NavItem href='/settings' label='Настройки' icon={IconSettings} />
       </nav>
     </div>
   );

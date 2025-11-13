@@ -1,7 +1,7 @@
 'use client';
 
 import type { SortBy } from '@/types/api';
-import { Clock, Calendar } from 'lucide-react';
+import { IconClock, IconCalendar } from '@tabler/icons-react';
 import {
   Select,
   SelectContent,
@@ -16,8 +16,8 @@ interface PostsSortSelectorProps {
 }
 
 const SORT_OPTIONS = {
-  saved_at: { label: 'Последние загруженные', icon: Clock },
-  original_date: { label: 'По времени публикации', icon: Calendar },
+  saved_at: { label: 'Последние загруженные', icon: IconClock },
+  original_date: { label: 'По времени публикации', icon: IconCalendar },
 } as const;
 
 export default function PostsSortSelector({ sortBy, onSortChange }: PostsSortSelectorProps) {
@@ -34,13 +34,13 @@ export default function PostsSortSelector({ sortBy, onSortChange }: PostsSortSel
       <SelectContent>
         <SelectItem value='saved_at'>
           <div className='flex items-center gap-2'>
-            <Clock className='w-4 h-4' />
+            <IconClock className='w-4 h-4' />
             <span>{SORT_OPTIONS.saved_at.label}</span>
           </div>
         </SelectItem>
         <SelectItem value='original_date'>
           <div className='flex items-center gap-2'>
-            <Calendar className='w-4 h-4' />
+            <IconCalendar className='w-4 h-4' />
             <span>{SORT_OPTIONS.original_date.label}</span>
           </div>
         </SelectItem>

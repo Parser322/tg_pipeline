@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Download, FileVideo, Image as ImageIcon, Loader2 } from "lucide-react";
+import { IconDownload, IconVideo, IconPhoto, IconLoader2 } from "@tabler/icons-react";
 import { useLargeMediaLoad } from "@/hooks/useLargeMediaLoad";
 
 interface OversizedMediaPlaceholderProps {
@@ -31,7 +31,7 @@ export function OversizedMediaPlaceholder({
     return `${mb.toFixed(1)} МБ`;
   };
 
-  const Icon = mediaType === "video" ? FileVideo : ImageIcon;
+  const Icon = mediaType === "video" ? IconVideo : IconPhoto;
 
   return (
     <Card className="relative w-full aspect-video bg-gray-100 dark:bg-gray-800 flex flex-col items-center justify-center gap-4 p-6">
@@ -64,12 +64,12 @@ export function OversizedMediaPlaceholder({
       >
         {loadMediaMutation.isPending ? (
           <>
-            <Loader2 className="w-4 h-4 animate-spin" />
+            <IconLoader2 className="w-4 h-4 animate-spin" />
             Загрузка...
           </>
         ) : (
           <>
-            <Download className="w-4 h-4" />
+            <IconDownload className="w-4 h-4" />
             Загрузить файл
           </>
         )}

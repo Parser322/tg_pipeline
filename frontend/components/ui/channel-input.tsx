@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from './button';
-import { Check } from 'lucide-react';
+import { IconCheck } from '@tabler/icons-react';
 
 type ChannelInputProps = Omit<React.HTMLAttributes<HTMLDivElement>, 'onChange'> & {
   value?: string;
@@ -84,7 +84,7 @@ const ChannelInput = React.forwardRef<HTMLDivElement, ChannelInputProps>(
               aria-label={buttonLabel}
               title={buttonLabel}
             >
-              <Check className='h-3 w-3' />
+              <IconCheck className='h-3 w-3' />
             </Button>
           </div>
         </div>

@@ -17,17 +17,17 @@ import {
 import { OversizedMediaPlaceholder } from './OversizedMediaPlaceholder';
 import type { Post, MediaItem } from '@/types/api';
 import {
-  Eye,
-  Star,
-  Languages,
-  Trash2,
-  MessageSquare,
-  Sparkles,
-  Smile,
-  ChevronDown,
-  Send,
-  Download,
-} from 'lucide-react';
+  IconEye,
+  IconStar,
+  IconLanguage,
+  IconTrash,
+  IconMessageCircle,
+  IconSparkles,
+  IconMoodSmile,
+  IconChevronDown,
+  IconSend,
+  IconDownload,
+} from '@tabler/icons-react';
 import { formatPostDate } from '@/lib/dateUtils';
 
 type PostCardProps = {
@@ -95,7 +95,7 @@ export default function PostCard({ post, onTranslate, onDelete }: PostCardProps)
   }, [post.channel_title, post.channel_username, post.source_channel, post.original_message_id]);
 
   return (
-    <Card className='bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm @container/card transition-shadow hover:shadow-md'>
+    <Card className='bg-card text-card-foreground flex flex-col gap-6 rounded-xl border pt-0 pb-0 shadow-sm @container/card transition-shadow hover:shadow-md'>
       <CardContent className='p-4 space-y-3'>
         <div className='flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3'>
           <div className='flex-1 min-w-0'>
@@ -115,7 +115,7 @@ export default function PostCard({ post, onTranslate, onDelete }: PostCardProps)
                   title='Дата публикации'
                   suppressHydrationWarning
                 >
-                  <Send className='h-3 w-3' />
+                  <IconSend className='h-3 w-3' />
                   <span suppressHydrationWarning>{formattedOriginalDate}</span>
                 </div>
               )}
@@ -125,7 +125,7 @@ export default function PostCard({ post, onTranslate, onDelete }: PostCardProps)
                   title='Дата сохранения'
                   suppressHydrationWarning
                 >
-                  <Download className='h-3 w-3' />
+                  <IconDownload className='h-3 w-3' />
                   <span suppressHydrationWarning>{formattedSavedDate}</span>
                 </div>
               )}
@@ -137,7 +137,7 @@ export default function PostCard({ post, onTranslate, onDelete }: PostCardProps)
                 variant='secondary'
                 className='text-xs px-2 py-1 rounded-md font-medium flex items-center gap-1 whitespace-nowrap'
               >
-                <Star className='h-3.5 w-3.5 text-yellow-500' />
+                <IconStar className='h-3.5 w-3.5 text-yellow-500' />
               </Badge>
             )}
           </div>
@@ -212,7 +212,7 @@ export default function PostCard({ post, onTranslate, onDelete }: PostCardProps)
             variant='secondary'
             className='text-xs px-2 py-1 rounded-md font-medium flex items-center gap-1 whitespace-nowrap'
           >
-            <Eye className='h-3.5 w-3.5' />
+            <IconEye className='h-3.5 w-3.5' />
             {post.original_views || 0}
           </Badge>
           <ReactionsSummary
@@ -223,7 +223,7 @@ export default function PostCard({ post, onTranslate, onDelete }: PostCardProps)
             variant='secondary'
             className='text-xs px-2 py-1 rounded-md font-medium flex items-center gap-1 whitespace-nowrap'
           >
-            <MessageSquare className='h-3.5 w-3.5' />
+            <IconMessageCircle className='h-3.5 w-3.5' />
             {post.original_comments || 0}
           </Badge>
         </div>
@@ -236,7 +236,7 @@ export default function PostCard({ post, onTranslate, onDelete }: PostCardProps)
               aria-label='Перевести на английский'
               title='Перевести на английский'
             >
-              <Languages className='h-4 w-4' />
+              <IconLanguage className='h-4 w-4' />
             </Button>
           )}
           <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -247,7 +247,7 @@ export default function PostCard({ post, onTranslate, onDelete }: PostCardProps)
                 aria-label='Удалить пост'
                 title='Удалить пост'
               >
-                <Trash2 className='h-4 w-4' />
+                <IconTrash className='h-4 w-4' />
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
@@ -324,10 +324,10 @@ function ReactionsSummary({ reactions, fallbackLikes }: ReactionsSummaryProps) {
         aria-label='Показать реакции'
         title={hasBreakdown ? 'Показать все реакции' : undefined}
       >
-        <Smile className='h-3.5 w-3.5' />
+        <IconMoodSmile className='h-3.5 w-3.5' />
         {total}
         {hasBreakdown && (
-          <ChevronDown className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`} />
+          <IconChevronDown className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`} />
         )}
       </div>
       {open && hasBreakdown && (
@@ -349,7 +349,7 @@ function ReactionsSummary({ reactions, fallbackLikes }: ReactionsSummaryProps) {
                     className='text-xs px-2 py-1 rounded-md font-medium flex items-center gap-1 whitespace-nowrap'
                   >
                     {isCustom ? (
-                      <Sparkles className='h-3.5 w-3.5' />
+                      <IconSparkles className='h-3.5 w-3.5' />
                     ) : (
                       <span className='text-base leading-none'>{emoji}</span>
                     )}

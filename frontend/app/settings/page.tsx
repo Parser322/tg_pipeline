@@ -51,7 +51,7 @@ export default function SettingsPage() {
   const SectionComponent = currentSection?.component;
 
   return (
-    <div className='min-h-screen bg-background'>
+    <div className='bg-background'>
       <div className='container max-w-6xl mx-auto px-4 py-6'>
 
         {/* Макет: Sidebar + Content */}

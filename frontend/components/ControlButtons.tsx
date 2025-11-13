@@ -1,5 +1,5 @@
 import { Button } from './ui/button';
-import { Loader2, Play, Square } from 'lucide-react';
+import { IconLoader2, IconPlayerPlay, IconSquare } from '@tabler/icons-react';
 import { cn } from '@/lib/utils';
 
 type ControlButtonsProps = {
@@ -23,7 +23,7 @@ export const ControlButtons = ({ onRun, onStop, isRunning, disabled, loading }: 
         aria-label={isRunning ? 'Остановка...' : 'Запуск...'}
         title={isRunning ? 'Остановка...' : 'Запуск...'}
       >
-        <Loader2 className='h-4 w-4 animate-spin' />
+        <IconLoader2 className='h-4 w-4 animate-spin' />
       </Button>
     );
   }
@@ -37,7 +37,7 @@ export const ControlButtons = ({ onRun, onStop, isRunning, disabled, loading }: 
         aria-label='Остановить парсер'
         title='Остановить'
       >
-        <Square className='h-4 w-4' />
+        <IconSquare className='h-4 w-4' />
       </Button>
     );
   }
@@ -52,7 +52,7 @@ export const ControlButtons = ({ onRun, onStop, isRunning, disabled, loading }: 
       aria-label='Запустить парсер'
       title='Запустить'
     >
-      <Play className='h-4 w-4' />
+      <IconPlayerPlay className='h-4 w-4' />
     </Button>
   );
 };

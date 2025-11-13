@@ -16,7 +16,7 @@ import { toast } from 'sonner';
 import { getUserTelegramCredentials } from '@/services/api';
 import type { UserTelegramCredentialsResponse } from '@/types/api';
 import Link from 'next/link';
-import { Settings } from 'lucide-react';
+import { IconSettings } from '@tabler/icons-react';
 
 export default function Dashboard() {
   const { status, error, success, runPipeline, stopPipeline, isLoading } = usePipeline();
@@ -99,7 +99,7 @@ export default function Dashboard() {
   );
 
   return (
-    <div className='min-h-screen bg-background'>
+    <div className='bg-background'>
       <div>
         {/* Предупреждение если нет credentials */}
         {!hasUserCredentials && (
@@ -115,7 +115,7 @@ export default function Dashboard() {
               </div>
               <Link href='/settings'>
                 <Button size='sm' variant='default'>
-                  <Settings className='h-4 w-4 mr-2' />
+                  <IconSettings className='h-4 w-4 mr-2' />
                   Настроить
                 </Button>
               </Link>
