@@ -53,13 +53,6 @@ export default function SettingsPage() {
   return (
     <div className='min-h-screen bg-background'>
       <div className='container max-w-6xl mx-auto px-4 py-6'>
-        {/* Заголовок */}
-        <div className='mb-6'>
-          <h1 className='text-2xl md:text-3xl font-bold mb-2'>Настройки</h1>
-          <p className='text-muted-foreground'>
-            Управление API credentials для различных социальных сетей
-          </p>
-        </div>
 
         {/* Макет: Sidebar + Content */}
         <div className='grid grid-cols-1 md:grid-cols-[240px_1fr] gap-6'>
@@ -106,12 +99,8 @@ export default function SettingsPage() {
             {currentSection && (
               <div className='space-y-4'>
                 {/* Описание секции */}
-                <div className='mb-4'>
-                  <h2 className='text-xl font-semibold flex items-center gap-2'>
-                    <SocialIcon type={currentSection.id} size={24} />
-                    {currentSection.label}
-                  </h2>
-                  <p className='text-sm text-muted-foreground mt-1'>
+                <div className='mb-2'>
+                  <p className='text-sm text-muted-foreground'>
                     {currentSection.description}
                   </p>
                 </div>

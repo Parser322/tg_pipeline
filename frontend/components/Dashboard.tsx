@@ -101,10 +101,6 @@ export default function Dashboard() {
   return (
     <div className='min-h-screen bg-background'>
       <div>
-        <div className='mb-4'>
-          <h1 className='text-xl md:text-2xl font-bold mb-1'>Панель управления</h1>
-        </div>
-
         {/* Предупреждение если нет credentials */}
         {!hasUserCredentials && (
           <Alert className='mb-4 border-orange-200 bg-orange-50'>
@@ -127,8 +123,8 @@ export default function Dashboard() {
           </Alert>
         )}
 
-        <Card className='shadow-sm rounded-lg'>
-          <CardContent className='p-4 space-y-4'>
+        <Card className='bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm @container/card'>
+          <CardContent className='px-6 pt-0 space-y-4'>
             <div>
               <label className='block text-sm font-medium mb-2'>Канал</label>
               <ChannelInput

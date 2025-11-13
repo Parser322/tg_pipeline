@@ -1,8 +1,8 @@
 import './globals.css';
 import Providers from './providers';
-import NavBar from '@/components/NavBar';
-import MobileNav from '@/components/MobileNav';
-import BottomNav from '@/components/BottomNav';
+import { AppSidebar } from '@/components/app-sidebar';
+import { SiteHeader } from '@/components/site-header';
+import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 
@@ -37,22 +37,28 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang='ru'>
       <body>
         <Providers>
-          <div className='min-h-screen flex flex-col'>
-            <header className='md:hidden border-b'>
-              <MobileNav />
-            </header>
-            <div className='flex flex-1'>
-              <aside className='hidden md:block w-56 border-r'>
-              <NavBar />
-              </aside>
-              <main className='flex-1'>
-                <div className='max-w-7xl mx-auto px-4 md:px-6 py-4 md:py-6 pb-20 md:pb-6'>{children}</div>
-              </main>
-            </div>
-            <footer className='md:hidden'>
-              <BottomNav />
-            </footer>
-          </div>
+          <SidebarProvider
+            style={
+              {
+                // Фикс: задаём валидные значения CSS-переменных,
+                // чтобы контент не заезжал под левый сайдбар
+                '--sidebar-width': '18rem',
+                '--header-height': '48px',
+              } as React.CSSProperties
+            }
+          >
+            <AppSidebar variant='inset' />
+            <SidebarInset>
+              <SiteHeader />
+              <div className='flex flex-1 flex-col'>
+                <div className='@container/main flex flex-1 flex-col gap-2'>
+                  <div className='flex flex-col gap-4 py-4 md:gap-6 md:py-6'>
+                    <div className='px-4 lg:px-6'>{children}</div>
+                  </div>
+                </div>
+              </div>
+            </SidebarInset>
+          </SidebarProvider>
         </Providers>
       </body>
     </html>

@@ -95,7 +95,7 @@ export default function PostCard({ post, onTranslate, onDelete }: PostCardProps)
   }, [post.channel_title, post.channel_username, post.source_channel, post.original_message_id]);
 
   return (
-    <Card className='hover:shadow-md transition-shadow rounded-lg'>
+    <Card className='bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm @container/card transition-shadow hover:shadow-md'>
       <CardContent className='p-4 space-y-3'>
         <div className='flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3'>
           <div className='flex-1 min-w-0'>
