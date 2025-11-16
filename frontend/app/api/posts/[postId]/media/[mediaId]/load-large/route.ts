@@ -4,10 +4,10 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ postId: string; mediaId: string }> }
+  { params }: { params: { postId: string; mediaId: string } }
 ) {
   try {
-    const { postId, mediaId } = await params;
+    const { postId, mediaId } = params;
 
     const response = await fetch(
       `${API_BASE_URL}/posts/${postId}/media/${mediaId}/load-large`,
@@ -34,4 +34,3 @@ export async function POST(
     );
   }
 }
-

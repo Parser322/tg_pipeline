@@ -4,8 +4,8 @@ import * as React from 'react';
 import { IconGauge, IconListDetails, IconSettings, IconInnerShadowTop } from '@tabler/icons-react';
 import { usePathname } from 'next/navigation';
 
-import { NavMain } from '@/components/nav-main';
-import { NavUser } from '@/components/nav-user';
+import { NavMain } from '@/components/NavMain';
+import { NavUser } from '@/components/NavUser';
 import {
   Sidebar,
   SidebarContent,

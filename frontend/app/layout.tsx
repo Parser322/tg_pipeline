@@ -1,11 +1,11 @@
 import './globals.css';
 import Providers from './providers';
-import { AppSidebar } from '@/components/app-sidebar';
-import { SiteHeader } from '@/components/site-header';
+import { AppSidebar } from '@/components/AppSidebar';
+import { SiteHeader } from '@/components/SiteHeader';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
 import type { Metadata, Viewport } from 'next';
-import type { ReactNode } from 'react';
+import type { ReactNode, CSSProperties } from 'react';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://example.com'),
@@ -45,7 +45,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 // чтобы контент не заезжал под левый сайдбар
                 '--sidebar-width': '18rem',
                 '--header-height': '48px',
-              } as React.CSSProperties
+              } as CSSProperties
             }
           >
             <AppSidebar variant='inset' />

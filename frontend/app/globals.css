@@ -86,20 +86,9 @@ body {
 }
 
 @layer base {
-  * {
-    @apply focus-visible:outline-none;
-  }
   html {
     @apply font-sans;
   }
-}
-
-/* Disable any default focus outline/ring globally */
-*:focus,
-*:focus-visible,
-*:focus-within {
-  outline: none !important;
-  box-shadow: none !important;
 }
 
 /* Firefox inner focus border reset */
