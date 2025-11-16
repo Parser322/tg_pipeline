@@ -1,5 +1,8 @@
 "use client"
 
+import * as React from "react"
+import { useActionState, useTransition } from "react"
+import Link from "next/link"
 import {
   IconCreditCard,
   IconDotsVertical,
@@ -27,6 +30,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { logoutAction } from "@/lib/actions"
 
 export function NavUser({
   user,
@@ -38,6 +42,15 @@ export function NavUser({
   }
 }) {
   const { isMobile } = useSidebar()
+  const [isPending, startTransition] = useTransition()
+  const [logoutState, logoutFormAction] = useActionState(logoutAction, {})
+  const formRef = React.useRef<HTMLFormElement>(null)
+
+  const handleLogout = () => {
+    startTransition(() => {
+      formRef.current?.requestSubmit()
+    })
+  }
 
   return (
     <SidebarMenu>
@@ -50,7 +63,14 @@ export function NavUser({
             >
               <Avatar className="h-8 w-8 rounded-lg grayscale">
                 <AvatarImage src={user.avatar} alt={user.name} />
-                <AvatarFallback className="rounded-lg">CN</AvatarFallback>
+                <AvatarFallback className="rounded-lg">
+                  {user.name
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")
+                    .toUpperCase()
+                    .slice(0, 2) || "U"}
+                </AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{user.name}</span>
@@ -71,7 +91,14 @@ export function NavUser({
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <Avatar className="h-8 w-8 rounded-lg">
                   <AvatarImage src={user.avatar} alt={user.name} />
-                  <AvatarFallback className="rounded-lg">CN</AvatarFallback>
+                  <AvatarFallback className="rounded-lg">
+                    {user.name
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")
+                      .toUpperCase()
+                      .slice(0, 2) || "U"}
+                  </AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">{user.name}</span>
@@ -83,9 +110,11 @@ export function NavUser({
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <IconUserCircle />
-                Account
+              <DropdownMenuItem asChild>
+                <Link href="/profile">
+                  <IconUserCircle />
+                  Account
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuItem>
                 <IconCreditCard />
@@ -97,10 +126,18 @@ export function NavUser({
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <form ref={formRef} action={logoutFormAction} className="hidden">
+              <button type="submit" />
+            </form>
+            <DropdownMenuItem onClick={handleLogout} disabled={isPending}>
               <IconLogout />
-              Log out
+              {isPending ? "Выходим…" : "Log out"}
             </DropdownMenuItem>
+            {logoutState?.error && (
+              <div className="px-2 py-1.5 text-xs text-destructive">
+                {logoutState.error}
+              </div>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>

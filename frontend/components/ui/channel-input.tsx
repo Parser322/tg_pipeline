@@ -28,7 +28,7 @@ const ChannelInput = React.forwardRef<HTMLDivElement, ChannelInputProps>(
     },
     ref
   ) => {
-    const [inputValue, setInputValue] = React.useState<string>(value || '');
+    const [inputValue, setInputValue] = React.useState<string>(() => value || '');
     const [isModified, setIsModified] = React.useState<boolean>(false);
 
     React.useEffect(() => {
@@ -72,6 +72,7 @@ const ChannelInput = React.forwardRef<HTMLDivElement, ChannelInputProps>(
             disabled={disabled}
             aria-label='Имя канала без @'
             className='flex h-8 flex-1 bg-transparent pl-1 pr-3 py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50'
+            suppressHydrationWarning
           />
           <div className='flex items-center pr-1'>
             <Button
@@ -96,6 +97,3 @@ const ChannelInput = React.forwardRef<HTMLDivElement, ChannelInputProps>(
 ChannelInput.displayName = 'ChannelInput';
 
 export { ChannelInput };
-
-
-

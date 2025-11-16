@@ -53,7 +53,6 @@ export default function SettingsPage() {
   return (
     <div className='bg-background'>
       <div className='container max-w-6xl mx-auto px-4 py-6'>
-
         {/* Макет: Sidebar + Content */}
         <div className='grid grid-cols-1 md:grid-cols-[240px_1fr] gap-6'>
           {/* Sidebar - Список соц сетей */}
@@ -61,7 +60,7 @@ export default function SettingsPage() {
             <Card className='shadow-sm'>
               <CardContent className='p-3'>
                 <nav className='space-y-1'>
-                  {enabledSections.map((section) => (
+                  {enabledSections.map(section => (
                     <button
                       key={section.id}
                       onClick={() => setActiveSection(section.id)}
@@ -80,9 +79,7 @@ export default function SettingsPage() {
 
                 {/* Placeholder для будущих соц сетей */}
                 <div className='mt-4 pt-4 border-t'>
-                  <p className='text-xs text-muted-foreground px-3 mb-2'>
-                    Скоро появится
-                  </p>
+                  <p className='text-xs text-muted-foreground px-3 mb-2'>Скоро появится</p>
                   <div className='space-y-1'>
                     <div className='flex items-center gap-3 px-3 py-2.5 text-sm text-muted-foreground/50'>
                       <SocialIcon type='instagram' size={20} className='opacity-50' />
@@ -100,9 +97,7 @@ export default function SettingsPage() {
               <div className='space-y-4'>
                 {/* Описание секции */}
                 <div className='mb-2'>
-                  <p className='text-sm text-muted-foreground'>
-                    {currentSection.description}
-                  </p>
+                  <p className='text-sm text-muted-foreground'>{currentSection.description}</p>
                 </div>
 
                 {/* Компонент настроек */}

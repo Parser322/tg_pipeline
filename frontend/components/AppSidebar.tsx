@@ -18,21 +18,33 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar';
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
+  user?: {
+    name: string;
+    email: string;
+    avatar?: string;
+  } | null;
+};
+
+export function AppSidebar({ user, ...props }: AppSidebarProps) {
   const pathname = usePathname();
+  const isAuthRoute = pathname === '/login' || pathname === '/register';
+
   const data = React.useMemo(
     () => ({
-      user: {
-        name: 'User',
-        email: 'user@example.com',
-        avatar: '/avatars/shadcn.jpg',
-      },
+      user: user
+        ? {
+            name: user.name,
+            email: user.email,
+            avatar: user.avatar ?? '/avatars/shadcn.jpg',
+          }
+        : null,
       navMain: [
         { title: 'Панель управления', url: '/', icon: IconGauge },
         { title: 'Посты', url: '/posts', icon: IconListDetails },
       ],
     }),
-    []
+    [user]
   );
 
   return (
@@ -51,28 +63,35 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={data.navMain} />
-        <SidebarGroup className='mt-auto'>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  tooltip='Настройки'
-                  isActive={pathname === '/settings' || pathname.startsWith('/settings/')}
-                >
-                  <a href='/settings' aria-current={pathname === '/settings' ? 'page' : undefined}>
-                    <IconSettings />
-                    <span>Настройки</span>
-                  </a>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {!isAuthRoute && (
+          <SidebarGroup className='mt-auto'>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    tooltip='Настройки'
+                    isActive={pathname === '/settings' || pathname.startsWith('/settings/')}
+                  >
+                    <a
+                      href='/settings'
+                      aria-current={pathname === '/settings' ? 'page' : undefined}
+                    >
+                      <IconSettings />
+                      <span>Настройки</span>
+                    </a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
-      <SidebarFooter>
-        <NavUser user={data.user} />
-      </SidebarFooter>
+      {!isAuthRoute && (
+        <SidebarFooter>
+          {data.user && <NavUser user={data.user} />}
+        </SidebarFooter>
+      )}
     </Sidebar>
   );
 }
