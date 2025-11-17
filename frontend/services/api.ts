@@ -14,7 +14,8 @@ class PipelineAPI {
     period_hours: number | null = null,
     channel_url: string | null = null,
     is_top_posts = false,
-    use_user_credentials = false
+    use_user_credentials = false,
+    user_identifier: string | null = null
   ): Promise<OkResponse> {
     return apiClient.post('/run', {
       limit,
@@ -22,15 +23,17 @@ class PipelineAPI {
       channel_url,
       is_top_posts,
       use_user_credentials,
+      user_identifier,
     });
   }
 
-  stop(): Promise<OkResponse> {
-    return apiClient.post('/stop');
+  stop(user_identifier: string | null = null): Promise<OkResponse> {
+    return apiClient.post('/stop', { user_identifier });
   }
 
-  status(signal?: AbortSignal): Promise<PipelineStatus> {
-    return apiClient.get('/status', signal);
+  status(signal?: AbortSignal, user_identifier: string | null = null): Promise<PipelineStatus> {
+    const params = user_identifier ? `?user_identifier=${user_identifier}` : '';
+    return apiClient.get(`/status${params}`, signal);
   }
 }
 
@@ -46,9 +49,13 @@ export const translateText = (
 
 export const getPosts = (
   signal?: AbortSignal,
-  sortBy: SortBy = 'original_date'
+  sortBy: SortBy = 'original_date',
+  user_identifier: string | null = null
 ): Promise<GetPostsResponse> => {
   const params = new URLSearchParams({ sort_by: sortBy });
+  if (user_identifier) {
+    params.append('user_identifier', user_identifier);
+  }
   return apiClient.get(`/posts?${params.toString()}`, signal);
 };
 
@@ -58,21 +65,34 @@ export const translatePost = (postId: string, target_lang = 'EN'): Promise<OkRes
 export const deletePost = (postId: string): Promise<OkResponse> =>
   apiClient.delete(`/posts/${postId}`);
 
-export const deleteAllPosts = (): Promise<OkResponse> => apiClient.delete('/posts');
+export const deleteAllPosts = (user_identifier: string | null = null): Promise<OkResponse> => {
+  const params = user_identifier ? `?user_identifier=${user_identifier}` : '';
+  return apiClient.delete(`/posts${params}`);
+};
 
-export const saveChannel = (username: string): Promise<OkResponse> =>
-  apiClient.post('/channels', { username });
+export const saveChannel = (username: string, user_identifier: string | null = null): Promise<OkResponse> => {
+  const params = user_identifier ? `?user_identifier=${user_identifier}` : '';
+  return apiClient.post(`/channels${params}`, { username });
+};
 
-export const getCurrentChannel = (signal?: AbortSignal): Promise<CurrentChannelResponse> =>
-  apiClient.get('/channels/current', signal);
+export const getCurrentChannel = (signal?: AbortSignal, user_identifier: string | null = null): Promise<CurrentChannelResponse> => {
+  const params = user_identifier ? `?user_identifier=${user_identifier}` : '';
+  return apiClient.get(`/channels/current${params}`, signal);
+};
 
 export const checkChannel = (
   username: string,
-  signal?: AbortSignal
-): Promise<CheckChannelResponse> => apiClient.get(`/channels/${username}/check`, signal);
+  signal?: AbortSignal,
+  user_identifier: string | null = null
+): Promise<CheckChannelResponse> => {
+  const params = user_identifier ? `?user_identifier=${user_identifier}` : '';
+  return apiClient.get(`/channels/${username}/check${params}`, signal);
+};
 
-export const deleteCurrentChannel = (): Promise<OkResponse> =>
-  apiClient.delete('/channels/current');
+export const deleteCurrentChannel = (user_identifier: string | null = null): Promise<OkResponse> => {
+  const params = user_identifier ? `?user_identifier=${user_identifier}` : '';
+  return apiClient.delete(`/channels/current${params}`);
+};
 
 export const loadLargeMedia = (
   postId: string,
@@ -86,6 +106,11 @@ export const saveTelegramCredentials = (
 ): Promise<OkResponse> => apiClient.post('/user/telegram-credentials', credentials);
 
 export const getUserTelegramCredentials = (
+  signal?: AbortSignal
+): Promise<import('@/types/api').UserTelegramCredentialsResponse> =>
+  apiClient.get('/user/telegram-credentials', signal);
+
+export const getGlobalTelegramCredentials = (
   signal?: AbortSignal
 ): Promise<import('@/types/api').UserTelegramCredentialsResponse> =>
   apiClient.get('/user/telegram-credentials', signal);

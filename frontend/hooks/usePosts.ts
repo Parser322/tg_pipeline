@@ -4,22 +4,25 @@ import { getPosts, translatePost as translatePostApi, deletePost as deletePostAp
 import type { Post, OkResponse, SortBy } from '@/types/api';
 import { queryKeys } from '@/lib/queryKeys';
 import { getErrorMessage } from '@/lib/errorUtils';
+import { useUser } from './useUser';
 
 type TranslatePostParams = { postId: string; targetLang: string };
 
 export const usePosts = (sortBy: SortBy = 'saved_at') => {
   const queryClient = useQueryClient();
+  const { userId } = useUser();
 
   const postsQuery = useQuery<Post[], Error>({
-    queryKey: [...queryKeys.posts, sortBy],
+    queryKey: [...queryKeys.posts, sortBy, userId],
     queryFn: async ({ signal }) => {
-      const response = await getPosts(signal, sortBy);
+      const response = await getPosts(signal, sortBy, userId);
       if (!response.ok) {
         throw new Error('Failed to fetch posts');
       }
       return response.posts;
     },
     staleTime: 15_000,
+    enabled: !!userId, // Запрашиваем только если пользователь авторизован
   });
 
   const translateMutation = useMutation<OkResponse, Error, TranslatePostParams>({
@@ -33,7 +36,7 @@ export const usePosts = (sortBy: SortBy = 'saved_at') => {
     mutationFn: (postId) => deletePostApi(postId),
     onMutate: async (postId) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.posts, exact: false });
-      const currentQueryKey = [...queryKeys.posts, sortBy];
+      const currentQueryKey = [...queryKeys.posts, sortBy, userId];
       const previousPosts = queryClient.getQueryData<Post[]>(currentQueryKey);
       
       queryClient.setQueryData<Post[]>(currentQueryKey, (old) =>
@@ -53,10 +56,10 @@ export const usePosts = (sortBy: SortBy = 'saved_at') => {
   });
 
   const deleteAllMutation = useMutation<OkResponse, Error, void, { previousPosts?: Post[]; currentQueryKey: string[] }>({
-    mutationFn: () => deleteAllPostsApi(),
+    mutationFn: () => deleteAllPostsApi(userId),
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: queryKeys.posts, exact: false });
-      const currentQueryKey = [...queryKeys.posts, sortBy];
+      const currentQueryKey = [...queryKeys.posts, sortBy, userId];
       const previousPosts = queryClient.getQueryData<Post[]>(currentQueryKey);
       
       queryClient.setQueryData<Post[]>(currentQueryKey, []);

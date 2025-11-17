@@ -43,8 +43,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Глобальная переменная для отслеживания задачи
-current_task: asyncio.Task = None
+# Словарь задач по пользователям для поддержки многопользовательского режима
+current_tasks: Dict[str, asyncio.Task] = {}
 
 # ===============================
 # Временное хранилище сессий для 2FA
@@ -270,9 +270,10 @@ async def read_root():
     """
 
 @app.get("/status")
-async def status_endpoint():
-    """Возвращает текущее состояние прогресса."""
-    return get_state()
+async def status_endpoint(user_identifier: str | None = None):
+    """Возвращает текущее состояние прогресса для конкретного пользователя."""
+    user_id = _get_user_identifier(user_identifier)
+    return get_state(user_id)
 
 async def run_pipeline_task(
     limit: int, 
@@ -281,36 +282,37 @@ async def run_pipeline_task(
     is_top_posts: bool = False,
     user_identifier: str | None = None
 ):
-    """Обёртка для запуска задачи и управления состоянием."""
-    global current_task
-    set_running(True)
+    """Обёртка для запуска задачи и управления состоянием для конкретного пользователя."""
+    global current_tasks
+    user_id = _get_user_identifier(user_identifier)
+    set_running(user_id, True)
     try:
-        print(f"Starting pipeline with limit: {limit}, channel: {channel_url or 'from config'}, top_posts: {is_top_posts}, user: {user_identifier}")
+        print(f"Starting pipeline with limit: {limit}, channel: {channel_url or 'from config'}, top_posts: {is_top_posts}, user: {user_id}")
         await run_pipeline_main(
             limit=limit, 
             period_hours=period_hours, 
             channel_url=channel_url, 
             is_top_posts=is_top_posts,
-            user_identifier=user_identifier
+            user_identifier=user_id
         )
-        print("Pipeline finished successfully.")
+        print(f"Pipeline finished successfully for user {user_id}.")
     except asyncio.CancelledError:
-        print("Pipeline task was cancelled.")
+        print(f"Pipeline task was cancelled for user {user_id}.")
     except Exception as e:
-        print(f"An error occurred in pipeline: {e}")
+        print(f"An error occurred in pipeline for user {user_id}: {e}")
         import traceback
         traceback.print_exc()
     finally:
-        set_running(False)
-        set_finished(True) # Устанавливаем флаг завершения
-        current_task = None
+        set_running(user_id, False)
+        set_finished(user_id, True)
+        # Удаляем задачу пользователя из словаря
+        if user_id in current_tasks:
+            del current_tasks[user_id]
 
 @app.post("/run-pipeline")
 async def trigger_pipeline(request: Request):
-    """Запускает основную логику в фоновом режиме."""
-    global current_task
-    if current_task and not current_task.done():
-        return JSONResponse(status_code=409, content={"message": "Процесс уже запущен."})
+    """Запускает основную логику в фоновом режиме для конкретного пользователя."""
+    global current_tasks
     
     data = await request.json()
     limit = data.get("limit", 100)
@@ -323,9 +325,16 @@ async def trigger_pipeline(request: Request):
     # User credentials теперь обязательны
     user_identifier = _get_user_identifier(user_identifier_param)
     
-    # Проверяем наличие credentials у пользователя
+    # Проверяем, не запущен ли уже процесс для этого пользователя
+    if user_identifier in current_tasks and not current_tasks[user_identifier].done():
+        return JSONResponse(
+            status_code=409, 
+            content={"message": "У вас уже запущен процесс парсинга. Дождитесь завершения или остановите его."}
+        )
+    
+    # Проверяем наличие глобальных credentials
     from app.supabase_manager import validate_telegram_credentials_exist
-    is_valid, error_msg = validate_telegram_credentials_exist(user_identifier)
+    is_valid, error_msg = validate_telegram_credentials_exist()
     if not is_valid:
         return JSONResponse(
             status_code=400, 
@@ -333,8 +342,9 @@ async def trigger_pipeline(request: Request):
         )
 
     # Сбрасываем состояние перед новым запуском
-    reset_state()
+    reset_state(user_identifier)
     
+    # Создаем задачу для конкретного пользователя
     task = asyncio.create_task(run_pipeline_task(
         limit=limit, 
         period_hours=period_hours,
@@ -342,18 +352,33 @@ async def trigger_pipeline(request: Request):
         is_top_posts=is_top_posts,
         user_identifier=user_identifier
     ))
-    current_task = task
+    current_tasks[user_identifier] = task
     
     return {"message": f"Процесс парсинга запущен. Лимит: {limit} постов."}
 
 @app.post("/stop-pipeline")
-async def stop_pipeline_endpoint():
-    """Отменяет запущенную задачу."""
-    global current_task
-    if not current_task or current_task.done():
-        return JSONResponse(status_code=404, content={"message": "Нет активных процессов для остановки."})
+async def stop_pipeline_endpoint(request: Request):
+    """Отменяет запущенную задачу конкретного пользователя."""
+    global current_tasks
+    
+    # Получаем user_identifier из тела запроса или query параметров
+    try:
+        data = await request.json()
+        user_identifier_param = data.get("user_identifier")
+    except:
+        user_identifier_param = None
+    
+    user_identifier = _get_user_identifier(user_identifier_param)
+    
+    # Проверяем наличие активной задачи для пользователя
+    if user_identifier not in current_tasks or current_tasks[user_identifier].done():
+        return JSONResponse(
+            status_code=404, 
+            content={"message": "У вас нет активных процессов для остановки."}
+        )
 
-    current_task.cancel()
+    # Отменяем задачу пользователя
+    current_tasks[user_identifier].cancel()
     return {"message": "Команда на остановку отправлена. Процесс завершится в ближайшее время."}
 
 # --- Совместимость с фронтендом: алиасы под ожидаемые пути ---
@@ -363,9 +388,9 @@ async def run_alias(request: Request):
     return await trigger_pipeline(request)
 
 @app.post("/stop")
-async def stop_alias():
+async def stop_alias(request: Request):
     # Делегируем в основной обработчик
-    return await stop_pipeline_endpoint()
+    return await stop_pipeline_endpoint(request)
 
 # --- Эндпоинт для перевода текста ---
 class TranslationPayload(BaseModel):
@@ -412,15 +437,17 @@ async def translate_endpoint(payload: TranslationPayload):
 # --- Эндпоинты для управления сохраненными постами ---
 
 @app.get("/posts")
-async def list_posts_endpoint(sort_by: str = "original_date"):
+async def list_posts_endpoint(sort_by: str = "original_date", user_identifier: str | None = None):
     """
-    Возвращает список всех сохраненных постов.
+    Возвращает список всех сохраненных постов конкретного пользователя.
     
     Query params:
         sort_by: Поле для сортировки ('original_date' - по времени поста, 'saved_at' - по времени загрузки)
+        user_identifier: Идентификатор пользователя (опционально, по умолчанию берется из функции)
     """
+    user_id = _get_user_identifier(user_identifier)
     # Возвращаем посты с вложениями media[]
-    posts = get_all_posts_with_media(sort_by=sort_by)
+    posts = get_all_posts_with_media(user_id, sort_by=sort_by)
     return {"ok": True, "posts": posts}
 
 class ManualTranslationPayload(BaseModel):
@@ -573,10 +600,11 @@ async def delete_post_endpoint(post_id: str):
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
 
 @app.delete("/posts")
-async def delete_all_posts_endpoint():
-    """Удаляет все сохраненные посты."""
+async def delete_all_posts_endpoint(user_identifier: str | None = None):
+    """Удаляет все сохраненные посты конкретного пользователя."""
     try:
-        deleted_count = delete_all_posts()
+        user_id = _get_user_identifier(user_identifier)
+        deleted_count = delete_all_posts(user_id)
         return {"ok": True, "message": f"Successfully deleted {deleted_count} posts."}
     except Exception as e:
         print(f"Delete all posts endpoint error: {e}")
@@ -588,10 +616,11 @@ class ChannelPayload(BaseModel):
     username: str
 
 @app.post("/channels")
-async def save_channel_endpoint(payload: ChannelPayload):
-    """Сохраняет канал в БД."""
+async def save_channel_endpoint(payload: ChannelPayload, user_identifier: str | None = None):
+    """Сохраняет канал в БД для конкретного пользователя."""
     try:
-        success = save_channel(payload.username)
+        user_id = _get_user_identifier(user_identifier)
+        success = save_channel(user_id, payload.username)
         if success:
             return {"ok": True, "message": "Channel saved successfully."}
         else:
@@ -601,30 +630,33 @@ async def save_channel_endpoint(payload: ChannelPayload):
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
 
 @app.get("/channels/current")
-async def get_current_channel_endpoint():
-    """Получает текущий сохраненный канал."""
+async def get_current_channel_endpoint(user_identifier: str | None = None):
+    """Получает текущий сохраненный канал конкретного пользователя."""
     try:
-        channel = get_saved_channel()
+        user_id = _get_user_identifier(user_identifier)
+        channel = get_saved_channel(user_id)
         return {"ok": True, "channel": channel}
     except Exception as e:
         print(f"Get current channel endpoint error: {e}")
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
 
 @app.get("/channels/{username}/check")
-async def check_channel_endpoint(username: str):
-    """Проверяет, сохранен ли канал."""
+async def check_channel_endpoint(username: str, user_identifier: str | None = None):
+    """Проверяет, сохранен ли канал для конкретного пользователя."""
     try:
-        is_saved = is_channel_saved(username)
+        user_id = _get_user_identifier(user_identifier)
+        is_saved = is_channel_saved(user_id, username)
         return {"ok": True, "is_saved": is_saved}
     except Exception as e:
         print(f"Check channel endpoint error: {e}")
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
 
 @app.delete("/channels/current")
-async def delete_current_channel_endpoint():
-    """Удаляет текущий сохраненный канал."""
+async def delete_current_channel_endpoint(user_identifier: str | None = None):
+    """Удаляет текущий сохраненный канал конкретного пользователя."""
     try:
-        success = delete_saved_channel()
+        user_id = _get_user_identifier(user_identifier)
+        success = delete_saved_channel(user_id)
         if success:
             return {"ok": True, "message": "Channel deleted successfully."}
         else:
@@ -661,16 +693,18 @@ def _get_user_identifier(payload_identifier: str | None = None) -> str:
     return os.getenv("DEFAULT_USER_ID", "demo-user")
 
 @app.post("/user/telegram-credentials")
-async def save_user_telegram_credentials_endpoint(payload: TelegramCredentialsPayload):
+async def save_global_telegram_credentials_endpoint(payload: TelegramCredentialsPayload):
     """
-    Сохраняет Telegram API credentials пользователя.
+    Сохраняет глобальные Telegram API credentials.
     Credentials шифруются перед сохранением в БД.
+    Доступно только администраторам.
     """
     try:
         from app.crypto_utils import encrypt_string
         from app.supabase_manager import save_user_telegram_credentials
         
-        user_identifier = _get_user_identifier(payload.user_identifier)
+        # Всегда сохраняем как глобальные credentials
+        user_identifier = "global"
         
         # Шифруем session перед сохранением
         encrypted_session = encrypt_string(payload.telegram_string_session)
@@ -700,16 +734,15 @@ async def save_user_telegram_credentials_endpoint(payload: TelegramCredentialsPa
         )
 
 @app.get("/user/telegram-credentials")
-async def get_user_telegram_credentials_endpoint(user_identifier: str | None = None):
+async def get_global_telegram_credentials_endpoint():
     """
-    Проверяет наличие Telegram credentials у пользователя.
+    Проверяет наличие глобальных Telegram credentials.
     Возвращает только факт наличия и API ID (без чувствительных данных).
     """
     try:
-        from app.supabase_manager import get_user_telegram_credentials
+        from app.supabase_manager import get_global_telegram_credentials
         
-        user_id = _get_user_identifier(user_identifier)
-        credentials = get_user_telegram_credentials(user_id)
+        credentials = get_global_telegram_credentials()
         
         if credentials:
             return {
@@ -732,12 +765,13 @@ async def get_user_telegram_credentials_endpoint(user_identifier: str | None = N
         )
 
 @app.delete("/user/telegram-credentials")
-async def delete_user_telegram_credentials_endpoint(user_identifier: str | None = None):
-    """Удаляет (деактивирует) Telegram credentials пользователя."""
+async def delete_global_telegram_credentials_endpoint():
+    """Удаляет (деактивирует) глобальные Telegram credentials."""
     try:
         from app.supabase_manager import delete_user_telegram_credentials
         
-        user_id = _get_user_identifier(user_identifier)
+        # Удаляем глобальные credentials
+        user_id = "global"
         success = delete_user_telegram_credentials(user_id)
         
         if success:
@@ -755,19 +789,18 @@ async def delete_user_telegram_credentials_endpoint(user_identifier: str | None 
         )
 
 @app.post("/user/telegram-credentials/validate")
-async def validate_telegram_credentials_endpoint(user_identifier: str | None = None):
+async def validate_global_telegram_credentials_endpoint():
     """
-    Проверяет валидность сохраненных Telegram credentials,
+    Проверяет валидность глобальных Telegram credentials,
     пытаясь подключиться к Telegram API.
     """
     try:
-        from app.supabase_manager import get_user_telegram_credentials
+        from app.supabase_manager import get_global_telegram_credentials
         from app.crypto_utils import decrypt_string
         from telethon import TelegramClient
         from telethon.sessions import StringSession
         
-        user_id = _get_user_identifier(user_identifier)
-        credentials = get_user_telegram_credentials(user_id)
+        credentials = get_global_telegram_credentials()
         
         if not credentials:
             return JSONResponse(

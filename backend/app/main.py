@@ -30,38 +30,6 @@ OUT.mkdir(exist_ok=True, parents=True)
 # Логика работы с state.json полностью заменена на Supabase через state_manager.py
 
 # === 1. Помощники для медиа ===
-def _ensure_telethon_session(session_base_path: str) -> None:
-    """
-    Если файла сессии нет, а переменная окружения TELEGRAM_SESSION_B64 передана,
-    восстановим файл сессии из base64.
-    """
-    try:
-        session_file = session_base_path + ".session"
-        if pathlib.Path(session_file).exists():
-            return
-        b64 = os.getenv("TELEGRAM_SESSION_B64")
-        if not b64:
-            return
-        import base64
-        data = base64.b64decode(b64)
-        with open(session_file, "wb") as f:
-            f.write(data)
-        print("Telethon session restored from TELEGRAM_SESSION_B64.")
-    except Exception as e:
-        print("Failed to restore Telethon session from env:", e)
-def _get_telegram_credentials() -> tuple[int, str]:
-    """
-    Читает TELEGRAM_API_ID/TELEGRAM_API_HASH из окружения.
-    Бросает понятную ошибку, если переменные не заданы.
-    """
-    api_id_str = os.getenv("TELEGRAM_API_ID")
-    api_hash = os.getenv("TELEGRAM_API_HASH")
-    if not api_id_str or not api_hash:
-        raise RuntimeError(
-            "Не заданы переменные окружения TELEGRAM_API_ID и/или TELEGRAM_API_HASH. "
-            "Добавьте их в Railway → Variables и перезапустите."
-        )
-    return int(api_id_str), api_hash
 def ffmpeg_exists() -> bool:
     return shutil.which("ffmpeg") is not None
 
@@ -316,7 +284,7 @@ async def get_channel_info(client: TelegramClient, ch: str) -> tuple[str, str]:
     return channel_title, channel_username
 
 # === 2a. Выбор топ-постов за период по метрикам ===
-async def process_top_posts(client: TelegramClient, ch: str, period_days: float, top_counts: dict, desired_total: int | None = None):
+async def process_top_posts(client: TelegramClient, ch: str, period_days: float, top_counts: dict, desired_total: int | None = None, user_id: str | None = None):
     print(f"== Top posts mode: channel {ch}, period_days={period_days}, counts={top_counts}")
     entity = await client.get_entity(ch)
     channel_title, channel_username = await get_channel_info(client, ch)
@@ -415,7 +383,7 @@ async def process_top_posts(client: TelegramClient, ch: str, period_days: float,
             continue
         counted.add(key)
         total_units += 1
-    set_total(total_units)
+    set_total(user_id, total_units)
 
     # Отправляем в целевой канал, соблюдая текущие правила склейки/медиа
     # Здесь без склейки; отправляем как есть
@@ -500,7 +468,7 @@ async def process_top_posts(client: TelegramClient, ch: str, period_days: float,
             "original_comments": grouped_comments,
             "original_reactions": grouped_reactions,
         }
-        post_id = save_post(post_to_save)
+        post_id = save_post(post_to_save, user_id)
         if post_id:
             # Пост успешно сохранен
             all_media_items = []
@@ -533,7 +501,7 @@ async def process_top_posts(client: TelegramClient, ch: str, period_days: float,
             print(f"Post album_key={album_key} saved to Supabase (post_id={post_id}). Skipping Telegram send.")
             
             # Увеличиваем счетчик только после успешного сохранения
-            increment_processed()
+            increment_processed(user_id)
         else:
             print(f"ERROR: Failed to save post album_key={album_key} to Supabase")
 
@@ -543,23 +511,32 @@ async def process_top_posts(client: TelegramClient, ch: str, period_days: float,
             except Exception as e: print("Cleanup error:", e)
 
 # === 2. Основная логика ===
-async def process_channel(client: TelegramClient, ch: str, limit: int):
-    print(f"== Channel: {ch}")
+async def process_channel(client: TelegramClient, ch: str, limit: int, user_id: str):
+    """
+    Обрабатывает канал для конкретного пользователя.
+    
+    Args:
+        client: Telegram клиент
+        ch: Канал для парсинга
+        limit: Лимит постов
+        user_id: UUID пользователя
+    """
+    print(f"== Channel: {ch} for user {user_id}")
     entity = await client.get_entity(ch)
     channel_title, channel_username = await get_channel_info(client, ch)
-    # last_id = get_last_id(ch) # Проверка на дубликаты отключена
+    # last_id = get_last_id(user_id, ch) # Проверка на дубликаты отключена
 
     # Запрашиваем последние сообщения без учета min_id
     all_msgs = [m async for m in client.iter_messages(entity, limit=limit*4)]  # Берём больше, чтобы не резать альбом
     if not all_msgs:
         print(f"No messages found for {ch}")
-        set_total(0)
+        set_total(user_id, 0)
         return
 
     # Формируем единицы постов с учетом альбомов
     units = group_messages_into_post_units(all_msgs)
     selected_units = units[:limit]
-    set_total(len(selected_units))  # считаем посты (альбомы), а не сообщения
+    set_total(user_id, len(selected_units))  # считаем посты (альбомы), а не сообщения
     selected_units.reverse()  # от старых к новым
 
     for group in selected_units:
@@ -629,7 +606,7 @@ async def process_channel(client: TelegramClient, ch: str, limit: int):
             }
             
             # --- Сохраняем пост и медиа ---
-            post_id = save_post(post_to_save)
+            post_id = save_post(post_to_save, user_id)
             if post_id:
                 # Пост успешно сохранен
                 all_media_items = []
@@ -676,7 +653,7 @@ async def process_channel(client: TelegramClient, ch: str, limit: int):
         finally:
             # Увеличиваем счетчик ВСЕГДА, даже если была ошибка
             # Иначе прогресс не синхронизируется с UI
-            increment_processed()
+            increment_processed(user_id)
 
 async def main(
     limit: int = 100, 
@@ -704,64 +681,31 @@ async def main(
         print("Please check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.")
         raise
     
-    # User credentials обязательны
+    # User identifier используется только для tracking, не для credentials
     if not user_identifier:
-        raise RuntimeError(
-            "User identifier is required. "
-            "Please add your Telegram credentials in settings."
-        )
+        user_identifier = "default"
     
-    print(f"🔑 Loading Telegram credentials for user: {user_identifier}")
-    from app.supabase_manager import get_user_telegram_credentials
+    print(f"🔑 Loading global Telegram credentials...")
+    from app.supabase_manager import get_global_telegram_credentials
     from app.crypto_utils import decrypt_string
     
-    credentials = get_user_telegram_credentials(user_identifier)
+    credentials = get_global_telegram_credentials()
     if not credentials:
         raise RuntimeError(
-            f"Telegram credentials not found for user '{user_identifier}'. "
-            "Please add your Telegram credentials in settings."
+            "Global Telegram credentials not found. "
+            "Administrator must add credentials in settings."
         )
     
     api_id = credentials["telegram_api_id"]
     api_hash = credentials["telegram_api_hash"]
     session_string = decrypt_string(credentials["telegram_string_session"])
-    print(f"✅ Using Telegram credentials (API ID: {api_id})")
+    print(f"✅ Using global Telegram credentials (API ID: {api_id})")
     
-    session_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "session")
-    # Попробуем восстановить файловую сессию из TELEGRAM_SESSION_B64 (если задана)
-    _ensure_telethon_session(session_path)
-
-    client = None
-    session_mode = "file"
-    if session_string:
-        try:
-            client = TelegramClient(StringSession(session_string), api_id, api_hash)
-            session_mode = "string"
-        except Exception as e:
-            # Ошибка при создании StringSession — откатываемся на файл
-            print(f"Invalid TELEGRAM_STRING_SESSION ({e}). Falling back to file session.")
-            client = TelegramClient(session_path, api_id, api_hash)
-            session_mode = "file"
-    else:
-        client = TelegramClient(session_path, api_id, api_hash)
-        session_mode = "file"
+    # Создаем клиента с string session из БД
+    client = TelegramClient(StringSession(session_string), api_id, api_hash)
+    
     try:
-        try:
-            await client.start()
-        except Exception as e:
-            # Частый сценарий: переменная TELEGRAM_STRING_SESSION из другой библиотеки
-            # (ошибка наподобие 'unpack requires a buffer of N bytes'). Пробуем фолбэк.
-            if session_mode == "string":
-                print(f"Failed to start with TELEGRAM_STRING_SESSION: {e}. Trying file/B64 session...")
-                try:
-                    if client.is_connected():
-                        await client.disconnect()
-                except Exception:
-                    pass
-                client = TelegramClient(session_path, api_id, api_hash)
-                await client.start()
-            else:
-                raise
+        await client.start()
         me = await client.get_me()
         print(f"Started session as {me.username or me.first_name}.")
         
@@ -780,10 +724,10 @@ async def main(
                 period_days = max(0.0417, float(period_hours) / 24.0)
             counts = top_cfg.get("top_by") or {"likes": 2, "comments": 2, "views": 2}
             for ch in channels:
-                await process_top_posts(client, ch, period_days=period_days, top_counts=counts, desired_total=limit)
+                await process_top_posts(client, ch, period_days=period_days, top_counts=counts, desired_total=limit, user_id=user_identifier)
         else:
             for ch in channels:
-                await process_channel(client, ch, limit=limit)
+                await process_channel(client, ch, limit=limit, user_id=user_identifier)
     except asyncio.CancelledError:
         print("Main task was cancelled. Disconnecting...")
         # Это исключение возникнет при нажатии "Остановить"

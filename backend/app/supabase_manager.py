@@ -69,20 +69,11 @@ def _client() -> Client:
 def _ensure_state_row() -> None:
     """
     Гарантирует наличие строки состояния. Создает её, если таблица пуста.
+    NOTE: После миграции на user-specific state, эта функция больше не нужна.
+    State создается автоматически для каждого пользователя при первом обращении.
     """
-    try:
-        response = _client().table(STATE_TABLE).select("id").eq("id", STATE_DOCUMENT_ID).limit(1).execute()
-        if _has_error(response):
-            raise RuntimeError(getattr(response, "error", "Unknown Supabase error"))
-        rows = response.data or []
-        if not rows:
-            logger.info("Создаю запись состояния по умолчанию в таблице %s", STATE_TABLE)
-            upsert_response = _client().table(STATE_TABLE).upsert(deepcopy(DEFAULT_STATE)).execute()
-            if _has_error(upsert_response):
-                raise RuntimeError(getattr(upsert_response, "error", "Unknown Supabase error"))
-    except Exception as exc:
-        logger.error("Не удалось проверить/создать запись состояния: %s", exc)
-        raise
+    # Больше не создаем глобальное состояние, так как теперь у каждого пользователя своё
+    pass
 
 
 def _ensure_media_bucket() -> None:
@@ -119,48 +110,83 @@ def _serialize_datetime(value: Any) -> Any:
     return value
 
 
-def get_state_document() -> Dict[str, Any]:
+def get_state_document(user_id: str) -> Dict[str, Any]:
+    """
+    Получает состояние пайплайна для конкретного пользователя.
+    
+    Args:
+        user_id: UUID пользователя
+        
+    Returns:
+        Словарь с состоянием или пустой словарь
+    """
     try:
-        response = _client().table(STATE_TABLE).select("*").eq("id", STATE_DOCUMENT_ID).limit(1).execute()
+        response = _client().table(STATE_TABLE).select("*").eq("id", STATE_DOCUMENT_ID).eq("user_id", user_id).limit(1).execute()
         rows = response.data or []
         return rows[0] if rows else {}
     except Exception as exc:
-        logger.error("Ошибка получения состояния из Supabase: %s", exc)
+        logger.error("Ошибка получения состояния из Supabase для user %s: %s", user_id, exc)
         return {}
 
 
-def update_state(updates: Dict[str, Any]) -> None:
+def update_state(user_id: str, updates: Dict[str, Any]) -> None:
+    """
+    Обновляет состояние пайплайна для конкретного пользователя.
+    
+    Args:
+        user_id: UUID пользователя
+        updates: Словарь с полями для обновления
+    """
     if not updates:
         return
     payload = deepcopy(updates)
     payload["updated_at"] = datetime.now(timezone.utc).isoformat()
     try:
-        response = _client().table(STATE_TABLE).update(payload).eq("id", STATE_DOCUMENT_ID).execute()
+        response = _client().table(STATE_TABLE).update(payload).eq("id", STATE_DOCUMENT_ID).eq("user_id", user_id).execute()
         if _has_error(response):
-            logger.error("Ошибка обновления состояния в Supabase: %s", getattr(response, "error", None))
+            logger.error("Ошибка обновления состояния в Supabase для user %s: %s", user_id, getattr(response, "error", None))
     except Exception as exc:
-        logger.error("Ошибка обновления состояния в Supabase: %s", exc)
+        logger.error("Ошибка обновления состояния в Supabase для user %s: %s", user_id, exc)
 
 
-def set_state(state: Dict[str, Any]) -> None:
+def set_state(user_id: str, state: Dict[str, Any]) -> None:
+    """
+    Устанавливает (создает или обновляет) состояние пайплайна для конкретного пользователя.
+    
+    Args:
+        user_id: UUID пользователя
+        state: Словарь с полями состояния
+    """
     payload = deepcopy(DEFAULT_STATE)
     payload.update(state or {})
     payload["id"] = STATE_DOCUMENT_ID
+    payload["user_id"] = user_id
     payload["updated_at"] = datetime.now(timezone.utc).isoformat()
     try:
         response = _client().table(STATE_TABLE).upsert(payload).execute()
         if _has_error(response):
-            logger.error("Ошибка сохранения состояния в Supabase: %s", getattr(response, "error", None))
+            logger.error("Ошибка сохранения состояния в Supabase для user %s: %s", user_id, getattr(response, "error", None))
     except Exception as exc:
-        logger.error("Ошибка сохранения состояния в Supabase: %s", exc)
+        logger.error("Ошибка сохранения состояния в Supabase для user %s: %s", user_id, exc)
 
 
-def save_post(post_data: Dict[str, Any]) -> Optional[str]:
+def save_post(post_data: Dict[str, Any], user_id: str) -> Optional[str]:
+    """
+    Сохраняет пост в БД для конкретного пользователя.
+    
+    Args:
+        post_data: Данные поста
+        user_id: UUID пользователя
+        
+    Returns:
+        ID созданного поста или None при ошибке
+    """
     if not isinstance(post_data, dict):
         logger.error("post_data должен быть словарем, получено: %s", type(post_data))
         return None
 
     payload = deepcopy(post_data)
+    payload["user_id"] = user_id
     payload["original_date"] = _serialize_datetime(payload.get("original_date"))
     payload["saved_at"] = datetime.now(timezone.utc).isoformat()
     original_ids = payload.get("original_ids")
@@ -179,13 +205,14 @@ def save_post(post_data: Dict[str, Any]) -> Optional[str]:
         inserted = rows[0] if rows else None
         original_id = payload.get("original_message_id", "N/A")
         logger.info(
-            "Пост (original_id=%s) сохранен в Supabase таблицу '%s'.",
+            "Пост (original_id=%s) для user %s сохранен в Supabase таблицу '%s'.",
             original_id,
+            user_id,
             POSTS_TABLE,
         )
         return inserted.get("id") if isinstance(inserted, dict) else None
     except Exception as exc:
-        logger.error("Ошибка сохранения поста в Supabase: %s", exc)
+        logger.error("Ошибка сохранения поста в Supabase для user %s: %s", user_id, exc)
         return None
 
 
@@ -433,11 +460,12 @@ def save_post_media(post_id: str, media_items: List[Dict[str, Any]]) -> int:
 
  
 
-def get_all_posts(sort_by: str = "original_date") -> List[Dict[str, Any]]:
+def get_all_posts(user_id: str, sort_by: str = "original_date") -> List[Dict[str, Any]]:
     """
-    Возвращает все посты с сортировкой.
+    Возвращает все посты конкретного пользователя с сортировкой.
     
     Args:
+        user_id: UUID пользователя
         sort_by: Поле для сортировки ('original_date' или 'saved_at')
         
     Логика сортировки:
@@ -454,23 +482,24 @@ def get_all_posts(sort_by: str = "original_date") -> List[Dict[str, Any]]:
         # Для saved_at - от новых к старым, для original_date - от старых к новым (хронологический порядок)
         desc_order = (sort_by == "saved_at")
         
-        response = _client().table(POSTS_TABLE).select("*").order(sort_by, desc=desc_order).execute()
+        response = _client().table(POSTS_TABLE).select("*").eq("user_id", user_id).order(sort_by, desc=desc_order).execute()
         if _has_error(response):
             raise RuntimeError(getattr(response, "error", "Unknown Supabase error"))
         return response.data or []
     except Exception as exc:
-        logger.error("Ошибка получения постов из Supabase: %s", exc)
+        logger.error("Ошибка получения постов из Supabase для user %s: %s", user_id, exc)
         return []
 
 
-def get_all_posts_with_media(sort_by: str = "original_date") -> List[Dict[str, Any]]:
+def get_all_posts_with_media(user_id: str, sort_by: str = "original_date") -> List[Dict[str, Any]]:
     """
-    Возвращает посты и вложенные для них медиа (массив media[]).
+    Возвращает посты конкретного пользователя и вложенные для них медиа (массив media[]).
     
     Args:
+        user_id: UUID пользователя
         sort_by: Поле для сортировки ('original_date' или 'saved_at')
     """
-    posts = get_all_posts(sort_by=sort_by)
+    posts = get_all_posts(user_id, sort_by=sort_by)
     if not posts:
         return []
     post_ids = [p.get("id") for p in posts if p.get("id")]
@@ -559,50 +588,82 @@ def delete_post(post_id: str) -> bool:
         return False
 
 
-def delete_all_posts() -> int:
-    posts = get_all_posts()
+def delete_all_posts(user_id: str) -> int:
+    """
+    Удаляет все посты конкретного пользователя.
+    
+    Args:
+        user_id: UUID пользователя
+        
+    Returns:
+        Количество удаленных постов
+    """
+    posts = get_all_posts(user_id)
     if not posts:
         return 0
     try:
-        response = _client().table(POSTS_TABLE).delete().neq("id", "00000000-0000-0000-0000-000000000000").execute()
+        response = _client().table(POSTS_TABLE).delete().eq("user_id", user_id).execute()
         if _has_error(response):
             raise RuntimeError(getattr(response, "error", "Unknown Supabase error"))
         return len(posts)
     except Exception as exc:
-        logger.error("Ошибка удаления всех постов в Supabase: %s", exc)
+        logger.error("Ошибка удаления всех постов в Supabase для user %s: %s", user_id, exc)
         return 0
 
 
-def save_channel(channel_username: str) -> bool:
+def save_channel(user_id: str, channel_username: str) -> bool:
+    """
+    Сохраняет канал для конкретного пользователя.
+    
+    Args:
+        user_id: UUID пользователя
+        channel_username: Имя канала (username)
+        
+    Returns:
+        True если успешно сохранено
+    """
     clean_username = (channel_username or "").lstrip("@").strip()
     if not clean_username:
         logger.warning("Имя канала пустое, сохранение пропущено.")
         return False
 
     try:
-        delete_response = _client().table(CHANNELS_TABLE).delete().neq("id", "00000000-0000-0000-0000-000000000000").execute()
+        # Удаляем старые каналы пользователя (оставляем только один текущий)
+        delete_response = _client().table(CHANNELS_TABLE).delete().eq("user_id", user_id).execute()
         if _has_error(delete_response):
             raise RuntimeError(getattr(delete_response, "error", "Unknown Supabase error"))
+        
         payload = {
+            "user_id": user_id,
             "username": clean_username,
             "saved_at": datetime.now(timezone.utc).isoformat(),
         }
         insert_response = _client().table(CHANNELS_TABLE).insert(payload).execute()
         if _has_error(insert_response):
             raise RuntimeError(getattr(insert_response, "error", "Unknown Supabase error"))
-        logger.info("Канал @%s сохранен в Supabase таблицу '%s'.", clean_username, CHANNELS_TABLE)
+        logger.info("Канал @%s для user %s сохранен в Supabase таблицу '%s'.", clean_username, user_id, CHANNELS_TABLE)
         return True
     except Exception as exc:
-        logger.error("Ошибка сохранения канала %s в Supabase: %s", channel_username, exc)
+        logger.error("Ошибка сохранения канала %s для user %s в Supabase: %s", channel_username, user_id, exc)
         return False
 
 
-def get_saved_channel() -> Optional[Dict[str, Any]]:
+def get_saved_channel(user_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Получает сохраненный канал конкретного пользователя.
+    
+    Args:
+        user_id: UUID пользователя
+        
+    Returns:
+        Информация о канале или None
+    """
     try:
         response = (
             _client()
             .table(CHANNELS_TABLE)
             .select("*")
+            .eq("user_id", user_id)
             .order("saved_at", desc=True)
             .limit(1)
             .execute()
@@ -612,26 +673,45 @@ def get_saved_channel() -> Optional[Dict[str, Any]]:
         rows = response.data or []
         return rows[0] if rows else None
     except Exception as exc:
-        logger.error("Ошибка получения сохраненного канала из Supabase: %s", exc)
+        logger.error("Ошибка получения сохраненного канала из Supabase для user %s: %s", user_id, exc)
         return None
 
 
-def is_channel_saved(channel_username: str) -> bool:
+def is_channel_saved(user_id: str, channel_username: str) -> bool:
+    """
+    Проверяет, сохранен ли канал для конкретного пользователя.
+    
+    Args:
+        user_id: UUID пользователя
+        channel_username: Имя канала
+        
+    Returns:
+        True если канал сохранен
+    """
     clean_username = (channel_username or "").lstrip("@").strip()
     if not clean_username:
         return False
-    channel = get_saved_channel()
+    channel = get_saved_channel(user_id)
     return bool(channel and channel.get("username") == clean_username)
 
 
-def delete_saved_channel() -> bool:
+def delete_saved_channel(user_id: str) -> bool:
+    """
+    Удаляет сохраненный канал конкретного пользователя.
+    
+    Args:
+        user_id: UUID пользователя
+        
+    Returns:
+        True если успешно удалено
+    """
     try:
-        response = _client().table(CHANNELS_TABLE).delete().neq("id", "00000000-0000-0000-0000-000000000000").execute()
+        response = _client().table(CHANNELS_TABLE).delete().eq("user_id", user_id).execute()
         if _has_error(response):
             raise RuntimeError(getattr(response, "error", "Unknown Supabase error"))
         return True
     except Exception as exc:
-        logger.error("Ошибка удаления канала в Supabase: %s", exc)
+        logger.error("Ошибка удаления канала в Supabase для user %s: %s", user_id, exc)
         return False
 
 
@@ -834,20 +914,35 @@ def delete_user_telegram_credentials(user_identifier: str) -> bool:
         return False
 
 
-def validate_telegram_credentials_exist(user_identifier: str) -> tuple[bool, Optional[str]]:
+def get_global_telegram_credentials() -> Optional[Dict[str, Any]]:
     """
-    Проверяет наличие и валидность credentials пользователя.
+    Получает глобальные Telegram credentials.
+    Глобальные credentials добавляются администратором через веб-интерфейс
+    и используются всеми пользователями системы.
     
-    Args:
-        user_identifier: Уникальный идентификатор пользователя
-        
+    Returns:
+        Словарь с credentials или None если не найдено
+    """
+    credentials = get_user_telegram_credentials("global")
+    if credentials:
+        logger.info("Используются глобальные Telegram credentials")
+        return credentials
+    
+    logger.warning("Глобальные credentials не найдены. Администратор должен добавить их в настройках.")
+    return None
+
+
+def validate_telegram_credentials_exist() -> tuple[bool, Optional[str]]:
+    """
+    Проверяет наличие и валидность глобальных credentials.
+    
     Returns:
         Кортеж (is_valid, error_message)
     """
-    credentials = get_user_telegram_credentials(user_identifier)
+    credentials = get_global_telegram_credentials()
     
     if not credentials:
-        return False, "Telegram credentials не найдены. Добавьте их в настройках."
+        return False, "Глобальные Telegram credentials не найдены. Администратор должен добавить их в настройках."
     
     required_fields = ["telegram_api_id", "telegram_api_hash", "telegram_string_session"]
     for field in required_fields:

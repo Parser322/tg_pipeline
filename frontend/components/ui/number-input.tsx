@@ -30,18 +30,18 @@ const NumberInput = React.forwardRef<HTMLDivElement, NumberInputProps>(
     ref
   ) => {
     const handleIncrement = () => {
-      const newValue = Math.min(max, (value || 0) + step);
+      const newValue = Math.min(max, (value ?? 0) + step);
       onValueChange?.(newValue);
     };
 
     const handleDecrement = () => {
-      const newValue = Math.max(min, (value || 0) - step);
+      const newValue = Math.max(min, (value ?? 0) - step);
       onValueChange?.(newValue);
     };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const newValue = parseInt(e.target.value) || 0;
-      if (newValue >= min && newValue <= max) {
+      const newValue = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
+      if (!isNaN(newValue) && newValue >= min && newValue <= max) {
         onValueChange?.(newValue);
       }
     };
@@ -60,7 +60,7 @@ const NumberInput = React.forwardRef<HTMLDivElement, NumberInputProps>(
         <div className='flex items-center gap-1'>
           <input
             type='number'
-            value={value || ''}
+            value={value ?? ''}
             onChange={handleInputChange}
             min={min}
             max={max}

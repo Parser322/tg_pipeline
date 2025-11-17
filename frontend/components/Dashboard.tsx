@@ -13,7 +13,7 @@ import { ChannelInput } from './ui/channel-input';
 import { Alert } from './ui/alert';
 import { Button } from './ui/button';
 import { toast } from 'sonner';
-import { getUserTelegramCredentials } from '@/services/api';
+import { getGlobalTelegramCredentials } from '@/services/api';
 import type { UserTelegramCredentialsResponse } from '@/types/api';
 import Link from 'next/link';
 import { IconSettings } from '@tabler/icons-react';
@@ -24,16 +24,16 @@ export default function Dashboard() {
   const [periodHours, setPeriodHours] = useState<number>(1);
   const [isTopPosts, setIsTopPosts] = useState<boolean>(false);
 
-  // Проверяем наличие user credentials
-  const userCredsQuery = useQuery<UserTelegramCredentialsResponse, Error>({
-    queryKey: ['user-telegram-credentials'],
-    queryFn: ({ signal }) => getUserTelegramCredentials(signal),
+  // Проверяем наличие глобальных credentials (для всех пользователей)
+  const globalCredsQuery = useQuery<UserTelegramCredentialsResponse, Error>({
+    queryKey: ['global-telegram-credentials'],
+    queryFn: ({ signal }) => getGlobalTelegramCredentials(signal),
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
 
-  const hasUserCredentials = userCredsQuery.data?.has_credentials ?? false;
-  const shouldShowCredsAlert = userCredsQuery.isSuccess && !hasUserCredentials;
+  const hasGlobalCredentials = globalCredsQuery.data?.has_credentials ?? false;
+  const shouldShowCredsAlert = globalCredsQuery.isSuccess && !hasGlobalCredentials;
 
   const {
     channelUsername,
@@ -74,16 +74,10 @@ export default function Dashboard() {
   const handleRun = useCallback(() => {
     if (validationError) return;
 
-    // Проверяем наличие user credentials (теперь обязательно)
-    if (!hasUserCredentials) {
-      toast.error('Сначала добавьте свои Telegram credentials в настройках');
-      return;
-    }
-
     const channelUrl = channelUsername.startsWith('@')
       ? `t.me/${channelUsername.slice(1)}`
       : `t.me/${channelUsername}`;
-    void runPipeline(postLimit, periodHours, channelUrl, isTopPosts, true); // Всегда используем user credentials
+    void runPipeline(postLimit, periodHours, channelUrl, isTopPosts, false); // Всегда используем глобальные credentials
   }, [
     validationError,
     channelUsername,
@@ -91,7 +85,6 @@ export default function Dashboard() {
     postLimit,
     periodHours,
     isTopPosts,
-    hasUserCredentials,
   ]);
 
   const isRunButtonDisabled = useMemo(
@@ -102,22 +95,22 @@ export default function Dashboard() {
   return (
     <div className='bg-background'>
       <div>
-        {/* Предупреждение если нет credentials */}
+        {/* Предупреждение если нет глобальных credentials */}
         {shouldShowCredsAlert && (
           <Alert className='mb-4 border-orange-200 bg-orange-50'>
             <div className='flex items-start justify-between gap-4'>
               <div className='flex-1'>
                 <p className='text-sm font-medium text-orange-900 mb-1'>
-                  ⚠️ Требуется настройка Telegram credentials
+                  ⚠️ Не настроены Telegram credentials
                 </p>
                 <p className='text-sm text-orange-700'>
-                  Для работы парсера необходимо добавить ваши Telegram API credentials
+                  Администратор должен добавить глобальные Telegram API credentials в настройках.
                 </p>
               </div>
               <Link href='/settings'>
                 <Button size='sm' variant='default'>
                   <IconSettings className='h-4 w-4 mr-2' />
-                  Настроить
+                  Настройки
                 </Button>
               </Link>
             </div>
