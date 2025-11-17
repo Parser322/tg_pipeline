@@ -636,6 +636,77 @@ def delete_saved_channel() -> bool:
 
 
 # ===============================
+# User Profiles and Roles API
+# ===============================
+
+USER_PROFILES_TABLE = "user_profiles"
+
+
+def get_user_role(user_identifier: str) -> Optional[str]:
+    """
+    Получает роль пользователя по его идентификатору.
+    
+    Args:
+        user_identifier: Идентификатор пользователя (email, user_id, etc)
+        
+    Returns:
+        Роль пользователя ('user' или 'admin') или None если не найдено
+    """
+    try:
+        # Ищем по id (UUID из auth.users)
+        response = (
+            _client()
+            .table(USER_PROFILES_TABLE)
+            .select("role")
+            .eq("id", user_identifier)
+            .single()
+            .execute()
+        )
+        
+        if not _has_error(response) and response.data:
+            return response.data.get("role")
+        
+        # Если не нашли по user_id, пытаемся найти через auth.users по email
+        # Это требует дополнительного запроса к auth, но для простоты
+        # можно использовать прямой запрос к user_profiles через email
+        # В production лучше использовать JWT токен с user_id
+        
+        logger.warning("Роль для пользователя %s не найдена", user_identifier)
+        return None
+    except Exception as exc:
+        logger.error("Ошибка получения роли пользователя %s: %s", user_identifier, exc)
+        return None
+
+
+def is_admin(user_identifier: str) -> bool:
+    """
+    Проверяет, является ли пользователь администратором.
+    
+    Args:
+        user_identifier: Идентификатор пользователя
+        
+    Returns:
+        True если пользователь является админом, False иначе
+    """
+    role = get_user_role(user_identifier)
+    return role == "admin"
+
+
+def is_user(user_identifier: str) -> bool:
+    """
+    Проверяет, является ли пользователь обычным пользователем.
+    
+    Args:
+        user_identifier: Идентификатор пользователя
+        
+    Returns:
+        True если пользователь является обычным пользователем, False иначе
+    """
+    role = get_user_role(user_identifier)
+    return role == "user" or role is None  # По умолчанию считаем обычным пользователем
+
+
+# ===============================
 # User Telegram Credentials API
 # ===============================
 
