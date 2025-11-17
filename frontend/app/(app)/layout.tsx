@@ -3,6 +3,7 @@ import { SiteHeader } from '@/components/SiteHeader';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
 import { supabaseServer } from '@/lib/supabaseServer';
+import { getUserProfile } from '@/lib/userUtils';
 import type { ReactNode, CSSProperties } from 'react';
 
 type AppLayoutProps = {
@@ -29,6 +30,10 @@ export default async function AppLayout({ children }: AppLayoutProps) {
       }
     : null;
 
+  // Получаем роль пользователя для проверки прав доступа
+  const userProfile = user ? await getUserProfile(supabase) : null;
+  const isAdmin = userProfile?.role === 'admin';
+
   return (
     <SidebarProvider
       style={
@@ -38,7 +43,7 @@ export default async function AppLayout({ children }: AppLayoutProps) {
         } as CSSProperties
       }
     >
-      <AppSidebar variant='inset' user={sidebarUser} />
+      <AppSidebar variant='inset' user={sidebarUser} isAdmin={isAdmin} />
       <SidebarInset>
         <SiteHeader />
         <Separator />

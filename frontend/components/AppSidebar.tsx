@@ -24,9 +24,10 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
     email: string;
     avatar?: string;
   } | null;
+  isAdmin?: boolean;
 };
 
-export function AppSidebar({ user, ...props }: AppSidebarProps) {
+export function AppSidebar({ user, isAdmin = false, ...props }: AppSidebarProps) {
   const pathname = usePathname();
   const isAuthRoute = pathname === '/login' || pathname === '/register';
 
@@ -63,7 +64,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={data.navMain} />
-        {!isAuthRoute && (
+        {!isAuthRoute && isAdmin && (
           <SidebarGroup className='mt-auto'>
             <SidebarGroupContent>
               <SidebarMenu>
