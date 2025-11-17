@@ -36,7 +36,7 @@ export const usePosts = (sortBy: SortBy = 'saved_at') => {
     mutationFn: (postId) => deletePostApi(postId),
     onMutate: async (postId) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.posts, exact: false });
-      const currentQueryKey = [...queryKeys.posts, sortBy, userId];
+      const currentQueryKey = [...queryKeys.posts, sortBy, userId].filter((item): item is string => item !== null);
       const previousPosts = queryClient.getQueryData<Post[]>(currentQueryKey);
       
       queryClient.setQueryData<Post[]>(currentQueryKey, (old) =>
@@ -59,7 +59,7 @@ export const usePosts = (sortBy: SortBy = 'saved_at') => {
     mutationFn: () => deleteAllPostsApi(userId),
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: queryKeys.posts, exact: false });
-      const currentQueryKey = [...queryKeys.posts, sortBy, userId];
+      const currentQueryKey = [...queryKeys.posts, sortBy, userId].filter((item): item is string => item !== null);
       const previousPosts = queryClient.getQueryData<Post[]>(currentQueryKey);
       
       queryClient.setQueryData<Post[]>(currentQueryKey, []);
