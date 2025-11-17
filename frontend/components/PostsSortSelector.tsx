@@ -23,8 +23,12 @@ const SORT_OPTIONS = {
 export default function PostsSortSelector({ sortBy, onSortChange }: PostsSortSelectorProps) {
   const CurrentIcon = SORT_OPTIONS[sortBy].icon;
 
+  const handleSortChange = (value: string) => {
+    onSortChange(value as SortBy);
+  };
+
   return (
-    <Select value={sortBy} onValueChange={(value) => onSortChange(value as SortBy)}>
+    <Select value={sortBy} onValueChange={handleSortChange}>
       <SelectTrigger className='w-[248px] bg-background'>
         <div className='flex items-center gap-2 mr-2'>
           <CurrentIcon className='w-4 h-4' />
