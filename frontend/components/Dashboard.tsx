@@ -5,8 +5,7 @@ import { usePipeline } from '@/hooks/usePipeline';
 import { usePostLimit } from '@/hooks/usePostLimit';
 import { useChannel } from '@/hooks/useChannel';
 import { useProgressToast } from '@/hooks/useProgressToast';
-import { ControlButtons } from './ControlButtons';
-import { Card, CardContent } from './ui/card';
+
 import { NumberInput } from './ui/number-input';
 import { Switch } from './ui/switch';
 import { ChannelInput } from './ui/channel-input';
@@ -16,7 +15,7 @@ import { toast } from 'sonner';
 import { getGlobalTelegramCredentials } from '@/services/api';
 import type { UserTelegramCredentialsResponse } from '@/types/api';
 import Link from 'next/link';
-import { IconSettings } from '@tabler/icons-react';
+import { IconSettings, IconPlayerPlay, IconSquare, IconLoader2 } from '@tabler/icons-react';
 
 export default function Dashboard() {
   const { status, error, success, runPipeline, stopPipeline, isLoading } = usePipeline();
@@ -117,25 +116,23 @@ export default function Dashboard() {
           </Alert>
         )}
 
-        <Card className='bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm @container/card'>
-          <CardContent className='px-6 pt-0 space-y-4'>
-            <div>
-              <label className='block text-sm font-medium mb-2'>Канал</label>
-              <ChannelInput
-                value={channelUsername}
-                onValueChange={handleChannelChange}
-                onSave={handleChannelSave}
-                onUnsave={handleChannelUnsave}
-                isSaved={isChannelSaved}
-                disabled={status.is_running || isLoading}
-                placeholder='канал'
-              />
-            </div>
+        <div className='space-y-8'>
+          <div className='space-y-4'>
+            <label className='block text-lg font-medium'>Канал</label>
+            <ChannelInput
+              value={channelUsername}
+              onValueChange={handleChannelChange}
+              onSave={handleChannelSave}
+              onUnsave={handleChannelUnsave}
+              isSaved={isChannelSaved}
+              disabled={status.is_running || isLoading}
+              placeholder='Введите канал (например, @durov)'
+            />
+          </div>
 
-            <hr className='border-border' />
-
-            <div className='flex flex-col gap-6 md:flex-row md:items-start md:gap-8'>
-              <div className='grid grid-cols-1 sm:grid-cols-2 gap-4 md:flex md:gap-8'>
+          <div className='grid grid-cols-1 md:grid-cols-2 gap-8 items-start'>
+            <div className='space-y-6'>
+              <div className='flex flex-col gap-4'>
                 <NumberInput
                   label='Количество постов'
                   value={postLimit}
@@ -153,38 +150,66 @@ export default function Dashboard() {
                   disabled={status.is_running || isLoading}
                 />
               </div>
-
-              <div className='relative md:pl-8'>
-                <div className='hidden md:block absolute left-0 top-0 bottom-0 w-px bg-border'></div>
-                <div className='flex items-center justify-between md:justify-start gap-6'>
-                  <label className='text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70'>
-                    Только топ посты
-                  </label>
-                  <Switch
-                    checked={isTopPosts}
-                    onCheckedChange={setIsTopPosts}
-                    disabled={status.is_running || isLoading}
-                  />
-                </div>
-              </div>
-
-              <div className='relative md:pl-8'>
-                <div className='hidden md:block absolute left-0 top-0 bottom-0 w-px bg-border'></div>
-                <ControlButtons
-                  onRun={handleRun}
-                  onStop={stopPipeline}
-                  isRunning={status.is_running}
-                  disabled={isRunButtonDisabled}
-                  loading={isLoading}
+              
+              
+              <label className='flex w-full items-center gap-3 rounded-lg border border-input p-4 cursor-pointer transition-colors hover:bg-accent/50 has-[:checked]:bg-primary/5 has-[:checked]:border-primary'>
+                <input
+                  type='checkbox'
+                  checked={isTopPosts}
+                  onChange={(e) => setIsTopPosts(e.target.checked)}
+                  disabled={status.is_running || isLoading}
+                  className='peer size-4 shrink-0 rounded border border-input shadow-xs transition-shadow outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 checked:bg-primary checked:text-primary-foreground checked:border-primary appearance-none grid place-content-center before:content-["✓"] before:text-[10px] before:text-transparent checked:before:text-current'
                 />
-              </div>
+                <div className='flex-1'>
+                  <div className='text-sm font-medium leading-none'>
+                    Только топ посты
+                  </div>
+                  <p className='text-xs text-muted-foreground mt-1'>
+                    Парсить только популярные посты
+                  </p>
+                </div>
+              </label>
             </div>
 
-            {validationError && (
-              <p className='text-red-600 text-sm font-medium'>{validationError}</p>
-            )}
-          </CardContent>
-        </Card>
+            <div className='flex flex-col gap-4'>
+              {/* Control button */}
+              {isLoading ? (
+                <Button
+                  disabled
+                  size='lg'
+                  className='w-full h-12 gap-2'
+                >
+                  <IconLoader2 className='h-5 w-5 animate-spin' />
+                  <span>{status.is_running ? 'Остановка...' : 'Запуск...'}</span>
+                </Button>
+              ) : status.is_running ? (
+                <Button
+                  onClick={stopPipeline}
+                  variant='destructive'
+                  size='lg'
+                  className='w-full h-12 gap-2'
+                >
+                  <IconSquare className='h-5 w-5' />
+                  <span>Остановить парсер</span>
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleRun}
+                  disabled={isRunButtonDisabled}
+                  size='lg'
+                  className='w-full h-12 gap-2 bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700'
+                >
+                  <IconPlayerPlay className='h-5 w-5' />
+                  <span>Запустить парсер</span>
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {validationError && (
+            <p className='text-red-600 text-sm font-medium'>{validationError}</p>
+          )}
+        </div>
       </div>
     </div>
   );

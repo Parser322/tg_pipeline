@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Alert } from './ui/alert';
@@ -325,25 +324,24 @@ export function TelegramCredentialsManager() {
     deleteMutation.isPending;
 
   return (
-    <Card className='shadow-sm rounded-lg'>
-      <CardContent className='p-4 space-y-4'>
-        <div className='flex items-center justify-between'>
-          <div>
-            <h3 className='text-lg font-semibold'>Глобальные Telegram Credentials</h3>
-            <p className='text-sm text-gray-600 mt-1'>
-              {step === 'view' && 'Эти credentials используются всеми пользователями системы'}
-              {step === 'input' && 'Шаг 1: Введите API данные и номер телефона'}
-              {step === 'code' && 'Шаг 2: Введите код из Telegram'}
-              {step === 'password' && 'Шаг 3: Введите пароль 2FA'}
-              {step === 'success' && 'Авторизация завершена!'}
-            </p>
-          </div>
-          {isCredsLoaded && hasCredentials && step === 'view' && (
-            <Badge variant='default' className='bg-green-600'>
-              ✓ Настроено
-            </Badge>
-          )}
+    <div className='space-y-6'>
+      <div className='flex items-center justify-between border-b pb-4'>
+        <div>
+          <h3 className='text-lg font-medium'>Глобальные Telegram Credentials</h3>
+          <p className='text-sm text-muted-foreground mt-1'>
+            {step === 'view' && 'Эти credentials используются всеми пользователями системы'}
+            {step === 'input' && 'Шаг 1: Введите API данные и номер телефона'}
+            {step === 'code' && 'Шаг 2: Введите код из Telegram'}
+            {step === 'password' && 'Шаг 3: Введите пароль 2FA'}
+            {step === 'success' && 'Авторизация завершена!'}
+          </p>
         </div>
+        {isCredsLoaded && hasCredentials && step === 'view' && (
+          <Badge variant='default' className='bg-green-600 hover:bg-green-700'>
+            ✓ Настроено
+          </Badge>
+        )}
+      </div>
 
         {/* VIEW MODE - Показ существующих credentials */}
         {isCredsLoaded && step === 'view' && hasCredentials && (
@@ -621,7 +619,6 @@ export function TelegramCredentialsManager() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-      </CardContent>
-    </Card>
+    </div>
   );
 }

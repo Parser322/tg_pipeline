@@ -27,9 +27,7 @@ export async function supabaseServer(): Promise<SupabaseClient> {
       },
       setAll(cookiesToSet) {
         try {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options)
-          );
+          cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
         } catch {
           // Метод `setAll` был вызван из Server Component.
           // Это можно игнорировать, если у вас есть middleware,

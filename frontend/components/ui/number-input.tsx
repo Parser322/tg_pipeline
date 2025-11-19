@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
-import { Button } from './button';
+import { IconMinus, IconPlus } from '@tabler/icons-react';
 
 type NumberInputProps = Omit<React.HTMLAttributes<HTMLDivElement>, 'onChange'> & {
   value: number;
@@ -47,17 +47,19 @@ const NumberInput = React.forwardRef<HTMLDivElement, NumberInputProps>(
     };
 
     return (
-      <div className={cn('space-y-2', className)} ref={ref} {...props}>
-        {label && (
-          <div className='space-y-1'>
-            <label className='text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70'>
+      <div className={cn('flex items-center justify-between gap-4', className)} ref={ref} {...props}>
+        {/* Label and description on the left */}
+        <div className='flex-1 space-y-1'>
+          {label && (
+            <div className='text-sm font-medium leading-none'>
               {label}
-            </label>
-            {description && <p className='text-sm text-muted-foreground'>{description}</p>}
-          </div>
-        )}
+            </div>
+          )}
+          {description && <p className='text-xs text-muted-foreground'>{description}</p>}
+        </div>
 
-        <div className='flex items-center gap-1'>
+        {/* Button group with input and buttons */}
+        <div className='flex w-fit items-stretch [&>*]:focus-visible:z-10 [&>*]:focus-visible:relative [&>*:not(:first-child)]:rounded-l-none [&>*:not(:first-child)]:border-l-0 [&>*:not(:last-child)]:rounded-r-none'>
           <input
             type='number'
             value={value ?? ''}
@@ -65,30 +67,28 @@ const NumberInput = React.forwardRef<HTMLDivElement, NumberInputProps>(
             min={min}
             max={max}
             disabled={disabled}
-            className='flex h-8 w-16 rounded-md border border-input bg-background px-2 py-1.5 text-sm text-center shadow-xs transition-[color,box-shadow] ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [-moz-appearance:textfield]'
+            className='h-8 !w-14 font-mono rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [-moz-appearance:textfield] text-center'
           />
-
-          <Button
+          
+          <button
             type='button'
-            variant='outline'
-            size='sm'
-            className='w-8 p-0'
             onClick={handleDecrement}
             disabled={disabled || value <= (min as number)}
+            className='inline-flex items-center justify-center size-8 rounded-md border border-input bg-background shadow-xs hover:bg-accent hover:text-accent-foreground transition-all disabled:pointer-events-none disabled:opacity-50 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]'
+            aria-label='Decrement'
           >
-            −
-          </Button>
-
-          <Button
+            <IconMinus className='size-4' />
+          </button>
+          
+          <button
             type='button'
-            variant='outline'
-            size='sm'
-            className='w-8 p-0'
             onClick={handleIncrement}
             disabled={disabled || value >= (max as number)}
+            className='inline-flex items-center justify-center size-8 rounded-md border border-input bg-background shadow-xs hover:bg-accent hover:text-accent-foreground transition-all disabled:pointer-events-none disabled:opacity-50 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]'
+            aria-label='Increment'
           >
-            +
-          </Button>
+            <IconPlus className='size-4' />
+          </button>
         </div>
       </div>
     );
@@ -98,6 +98,3 @@ const NumberInput = React.forwardRef<HTMLDivElement, NumberInputProps>(
 NumberInput.displayName = 'NumberInput';
 
 export { NumberInput };
-
-
-

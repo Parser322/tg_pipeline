@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from './button';
-import { IconCheck } from '@tabler/icons-react';
+import { IconBookmark, IconBookmarkFilled } from '@tabler/icons-react';
 
 type ChannelInputProps = Omit<React.HTMLAttributes<HTMLDivElement>, 'onChange'> & {
   value?: string;
@@ -43,51 +43,68 @@ const ChannelInput = React.forwardRef<HTMLDivElement, ChannelInputProps>(
       onValueChange?.(newValue);
     };
 
-    const handleButtonClick = () => {
+    const handleSave = () => {
       if (!inputValue.trim()) {
         return;
       }
-
-      if (isSaved && !isModified) {
-        onUnsave?.(inputValue);
-      } else {
-        onSave?.(inputValue);
-        setIsModified(false);
-      }
+      onSave?.(inputValue);
+      setIsModified(false);
     };
 
-    const buttonVariant = (isSaved && !isModified ? 'secondary' : 'outline') as any;
-    const isButtonDisabled = disabled || !inputValue.trim();
-    const buttonLabel = isSaved && !isModified ? 'Удалить сохранённый канал' : 'Сохранить канал';
+    const handleUnsave = () => {
+      if (!inputValue.trim()) {
+        return;
+      }
+      onUnsave?.(inputValue);
+    };
+
+    const showSaveButton = !isSaved || isModified;
+    const showSavedIndicator = isSaved && !isModified;
 
     return (
       <div className={cn('relative', className)} ref={ref} {...props}>
-        <div className='flex w-full items-center rounded-md border border-input bg-background shadow-xs transition-[color,box-shadow] focus-within:outline-none focus-within:ring-[3px] focus-within:ring-ring/30 focus-within:ring-offset-0'>
-          <div className='flex items-center pl-3 text-sm text-muted-foreground'>@</div>
-          <input
-            type='text'
-            value={inputValue}
-            onChange={handleInputChange}
-            placeholder={placeholder}
-            disabled={disabled}
-            aria-label='Имя канала без @'
-            className='flex h-8 flex-1 bg-transparent pl-1 pr-3 py-1.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50'
-            suppressHydrationWarning
-          />
-          <div className='flex items-center pr-1'>
+        <div className='flex gap-2 items-center'>
+          <div className='flex-1 flex items-center h-10 rounded-md border border-input bg-background shadow-xs transition-colors focus-within:outline-none'>
+            <div className='flex items-center pl-3 text-sm text-muted-foreground'>@</div>
+            <input
+              type='text'
+              value={inputValue}
+              onChange={handleInputChange}
+              placeholder={placeholder}
+              disabled={disabled}
+              aria-label='Имя канала без @'
+              className='flex h-full flex-1 bg-transparent pl-1 pr-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50'
+              suppressHydrationWarning
+            />
+          </div>
+
+          {showSaveButton && (
             <Button
               type='button'
-              variant={buttonVariant}
-              size='sm'
-              className='h-6 w-6 p-0 rounded-full'
-              onClick={handleButtonClick}
-              disabled={isButtonDisabled}
-              aria-label={buttonLabel}
-              title={buttonLabel}
+              variant='default'
+              className='h-10 px-4 gap-2'
+              onClick={handleSave}
+              disabled={disabled || !inputValue.trim()}
             >
-              <IconCheck className='h-3 w-3' />
+              <IconBookmark className='h-4 w-4' />
+              <span>Сохранить</span>
             </Button>
-          </div>
+          )}
+
+          {showSavedIndicator && (
+            <div className='flex items-center gap-2 px-4 h-10 rounded-md bg-secondary text-secondary-foreground'>
+              <IconBookmarkFilled className='h-4 w-4 text-primary' />
+              <span className='text-sm font-medium'>Сохранено</span>
+              <button
+                type='button'
+                onClick={handleUnsave}
+                disabled={disabled}
+                className='ml-2 text-xs text-muted-foreground hover:text-foreground underline-offset-4 hover:underline transition-colors disabled:opacity-50'
+              >
+                Удалить
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );

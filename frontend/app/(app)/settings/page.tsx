@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
 import { TelegramCredentialsManager } from '@/components/TelegramCredentialsManager';
 import { SocialIcon } from '@/components/ui/social-icons';
 import { cn } from '@/lib/utils';
@@ -54,41 +53,37 @@ export default function SettingsPage() {
     <div className='bg-background'>
       <div className='container max-w-6xl mx-auto px-4 py-6'>
         {/* Макет: Sidebar + Content */}
-        <div className='grid grid-cols-1 md:grid-cols-[240px_1fr] gap-6'>
+        <div className='grid grid-cols-1 md:grid-cols-[240px_1fr] gap-8'>
           {/* Sidebar - Список соц сетей */}
-          <aside className='space-y-2'>
-            <Card className='shadow-sm'>
-              <CardContent className='p-3'>
-                <nav className='space-y-1'>
-                  {enabledSections.map(section => (
-                    <button
-                      key={section.id}
-                      onClick={() => setActiveSection(section.id)}
-                      className={cn(
-                        'w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors',
-                        activeSection === section.id
-                          ? 'bg-accent text-foreground font-medium'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
-                      )}
-                    >
-                      <SocialIcon type={section.id} size={20} />
-                      <span>{section.label}</span>
-                    </button>
-                  ))}
-                </nav>
+          <aside className='space-y-6'>
+            <nav className='space-y-1'>
+              {enabledSections.map(section => (
+                <button
+                  key={section.id}
+                  onClick={() => setActiveSection(section.id)}
+                  className={cn(
+                    'w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors font-medium',
+                    activeSection === section.id
+                      ? 'bg-secondary text-secondary-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
+                  )}
+                >
+                  <SocialIcon type={section.id} size={20} />
+                  <span>{section.label}</span>
+                </button>
+              ))}
+            </nav>
 
-                {/* Placeholder для будущих соц сетей */}
-                <div className='mt-4 pt-4 border-t'>
-                  <p className='text-xs text-muted-foreground px-3 mb-2'>Скоро появится</p>
-                  <div className='space-y-1'>
-                    <div className='flex items-center gap-3 px-3 py-2.5 text-sm text-muted-foreground/50'>
-                      <SocialIcon type='instagram' size={20} className='opacity-50' />
-                      <span>Instagram</span>
-                    </div>
-                  </div>
+            {/* Placeholder для будущих соц сетей */}
+            <div className='pt-4 border-t'>
+              <p className='text-xs font-medium text-muted-foreground px-3 mb-3 uppercase tracking-wider'>Скоро</p>
+              <div className='space-y-1'>
+                <div className='flex items-center gap-3 px-3 py-2.5 text-sm text-muted-foreground/40 cursor-not-allowed'>
+                  <SocialIcon type='instagram' size={20} className='opacity-40' />
+                  <span>Instagram</span>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </aside>
 
           {/* Main Content - Активная секция */}
